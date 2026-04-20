@@ -44,6 +44,7 @@ file(GLOB TEST_HARNESS_INCLUDE
     "include/ImageCapture.h"
     "include/Inputs.h"
     "include/Instrumentation.h"
+    "include/SceneSyncExport.h"
     "include/Scenes.h"
     "include/Shaders.h"
     "include/Textures.h"
@@ -59,6 +60,7 @@ file(GLOB TEST_HARNESS_SOURCE
     "src/ImageCapture.cpp"
     "src/Instrumentation.cpp"
     "src/main.cpp"
+    "src/SceneSyncExport.cpp"
     "src/Scenes.cpp"
     "src/Shaders.cpp"
     "src/Textures.cpp"
@@ -164,6 +166,7 @@ file(GLOB TEST_HARNESS_SHADER_SOURCE
 
 file(GLOB TEST_HARNESS_DDGI_SHADER_SOURCE
     "shaders/ddgi/ProbeTraceRGS.hlsl"
+    "shaders/ddgi/ProbeDebugDumpCS.hlsl"
 )
 
 file(GLOB TEST_HARNESS_DDGIVIS_SHADER_SOURCE
@@ -230,7 +233,9 @@ option(RTXGISAMPLES_GFX_NVAPI "Enable NVAPI" ON)
 # Test Harness bindless options
 set(RTXGISAMPLES_TEST_HARNESS_BINDLESS_TYPE "Resource Arrays" CACHE STRING "The bindless resource implementation to use")
 if(RTXGI_API_D3D12_ENABLE)
-    set(RTXGISAMPLES_TEST_HARNESS_BINDLESS_TYPE "Descriptor Heap, Shader Model 6.6+" CACHE STRING "The bindless resource implementation to use")
+    # ProbeDebugDumpCS requires descriptor heap bindless mode in D3D12.
+    # FORCE avoids stale cache values (e.g. existing build dirs stuck on "Resource Arrays").
+    set(RTXGISAMPLES_TEST_HARNESS_BINDLESS_TYPE "Descriptor Heap, Shader Model 6.6+" CACHE STRING "The bindless resource implementation to use" FORCE)
     set_property(CACHE RTXGISAMPLES_TEST_HARNESS_BINDLESS_TYPE PROPERTY STRINGS "Resource Arrays" "Descriptor Heap, Shader Model 6.6+")
 else()
     set_property(CACHE RTXGISAMPLES_TEST_HARNESS_BINDLESS_TYPE PROPERTY STRINGS "Resource Arrays")
@@ -311,6 +316,8 @@ set(IMGUI_BACKENDS_INCLUDE_PATH "${ROOT_DIR}/thirdparty/imgui/backends")
 set(TINYGLTF_INCLUDE_PATH "${ROOT_DIR}/thirdparty/tinygltf")
 set(NVAPI_INCLUDE_PATH "${ROOT_DIR}/thirdparty/nvapi")
 
+set(RG2_SCENE_SYNC_CPP_DIR "D:/code/rg2/ffi/scene_sync/cpp" CACHE PATH "Path to rg_scene_sync C++ headers/dll")
+
 set(EXTERNAL_PATH "${ROOT_DIR}/external")
 set(DXC_INCLUDE_PATH "${EXTERNAL_PATH}/dxc/inc")
 set(D3D_AGILITY_INCLUDE_PATH "${EXTERNAL_PATH}/agilitysdk/build/native/include")
@@ -362,6 +369,13 @@ if(RTXGI_API_D3D12_ENABLE)
         ${NVAPI_INCLUDE_PATH}
         ${TINYGLTF_INCLUDE_PATH}
     )
+
+    if(EXISTS "${RG2_SCENE_SYNC_CPP_DIR}/rg_scene_sync.hpp")
+        target_include_directories(${TARGET_EXE} PRIVATE "${RG2_SCENE_SYNC_CPP_DIR}")
+        target_compile_definitions(${TARGET_EXE} PRIVATE RTXGI_ENABLE_SCENE_SYNC_EXPORT=1)
+    else()
+        target_compile_definitions(${TARGET_EXE} PRIVATE RTXGI_ENABLE_SCENE_SYNC_EXPORT=0)
+    endif()
 
     if(RTXGISAMPLES_GFX_NVAPI)
         target_compile_definitions(${TARGET_EXE} PRIVATE GFX_NVAPI=1)

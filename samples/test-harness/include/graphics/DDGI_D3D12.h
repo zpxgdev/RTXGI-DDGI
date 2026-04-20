@@ -27,6 +27,7 @@ namespace Graphics
                 // Shaders
                 Shaders::ShaderRTPipeline    rtShaders;
                 Shaders::ShaderProgram       indirectCS;
+                Shaders::ShaderProgram       probeDebugCS;
 
                 // Ray Tracing
                 ID3D12Resource*              shaderTable = nullptr;
@@ -36,6 +37,7 @@ namespace Graphics
                 ID3D12StateObject*           rtpso = nullptr;
                 ID3D12StateObjectProperties* rtpsoInfo = nullptr;
                 ID3D12PipelineState*         indirectPSO = nullptr;
+                ID3D12PipelineState*         probeDebugPSO = nullptr;
 
                 // Shader Table
                 UINT                         shaderTableSize = 0;
@@ -62,6 +64,9 @@ namespace Graphics
                 ID3D12Resource*              volumeConstantsSTBUpload = nullptr;
                 UINT                         volumeConstantsSTBSizeInBytes = 0;
 
+                ID3D12Resource*              probeDebugBuffer = nullptr;
+                UINT                         probeDebugBufferEntries = 0;
+
                 // Variability Tracking
                 std::vector<uint32_t>        numVolumeVariabilitySamples;
 
@@ -75,6 +80,15 @@ namespace Graphics
                 Instrumentation::Stat*       relocateStat = nullptr;
                 Instrumentation::Stat*       lightingStat = nullptr;
                 Instrumentation::Stat*       variabilityStat = nullptr;
+                Instrumentation::Stat*       probeDebugStat = nullptr;
+
+                bool                         forceNoHysteresis = false;
+                bool                         forceNoHysteresisLastFrame = false;
+                uint32_t                     forceNoHysteresisUpdateFrames = 1;
+                uint32_t                     forceNoHysteresisFramesRemaining = 0;
+                bool                         probeDebugDumpEnabled = false;
+                uint32_t                     probeDebugDumpVolume = 0;
+                uint32_t                     probeDebugDumpMaxProbes = 0;
 
                 bool                         enabled = false;
             };

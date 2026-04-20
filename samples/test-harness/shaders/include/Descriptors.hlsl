@@ -93,6 +93,7 @@ VK_BINDING(13, 0) ByteAddressBuffer                          ByteAddrBuffer[]   
 #define RTAO_OUTPUT_INDEX 6
 #define RTAO_RAW_INDEX 7
 #define DDGI_OUTPUT_INDEX 8
+#define DDGI_PROBE_DEBUG_INDEX 9
 
 #define SCENE_TLAS_INDEX 0
 #define DDGIPROBEVIS_TLAS_INDEX 1
@@ -168,17 +169,18 @@ Texture2DArray<float4> GetTex2DArray(uint index) { return Tex2DArray[index]; }
 #define RTAO_OUTPUT_INDEX 13
 #define RTAO_RAW_INDEX 14
 #define DDGI_OUTPUT_INDEX 15
+#define DDGI_PROBE_DEBUG_INDEX 16
 
-#define SCENE_TLAS_INDEX 52
-#define DDGIPROBEVIS_TLAS_INDEX 53
+#define SCENE_TLAS_INDEX 53
+#define DDGIPROBEVIS_TLAS_INDEX 54
 
-#define BLUE_NOISE_INDEX 54
+#define BLUE_NOISE_INDEX 55
 
-#define SPHERE_INDEX_BUFFER_INDEX 392
-#define SPHERE_VERTEX_BUFFER_INDEX 393
-#define MESH_OFFSETS_INDEX 394
-#define GEOMETRY_DATA_INDEX 395
-#define GEOMETRY_BUFFERS_INDEX 396
+#define SPHERE_INDEX_BUFFER_INDEX 393
+#define SPHERE_VERTEX_BUFFER_INDEX 394
+#define MESH_OFFSETS_INDEX 395
+#define GEOMETRY_DATA_INDEX 396
+#define GEOMETRY_BUFFERS_INDEX 397
 
 // Sampler Accessor Functions ------------------------------------------------------------------------------
 

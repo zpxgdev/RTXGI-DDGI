@@ -668,10 +668,12 @@ namespace Scenes
      */
     void ParseConfigCamerasLights(const Configs::Config& config, Scene& scene)
     {
-        // Add scene lights from config file
+        // Add scene lights from config file.
         std::vector<Light> spotLights;
         std::vector<Light> pointLights;
+        scene.hasDirectionalLight = 0;
         scene.lights.resize(config.scene.lights.size());
+
         for (uint32_t lightIndex = 0; lightIndex < static_cast<uint32_t>(config.scene.lights.size()); lightIndex++)
         {
             const Configs::Light& light = config.scene.lights[lightIndex];
@@ -712,7 +714,6 @@ namespace Scenes
                 pointLights.back().data.position = { light.position.x, light.position.y, light.position.z };
                 pointLights.back().data.radius = light.radius;
             }
-
         }
 
         uint32_t lightIndex;
@@ -720,14 +721,14 @@ namespace Scenes
         scene.firstSpotLight = scene.hasDirectionalLight;
         for (lightIndex = 0; lightIndex < scene.numSpotLights; lightIndex++)
         {
-            scene.lights[scene.hasDirectionalLight] = spotLights[lightIndex];
+            scene.lights[scene.hasDirectionalLight + lightIndex] = spotLights[lightIndex];
         }
 
-        scene.numPointLights = static_cast<uint32_t>(pointLights.size());
         scene.firstPointLight = scene.hasDirectionalLight + scene.numSpotLights;
+        scene.numPointLights = static_cast<uint32_t>(pointLights.size());
         for (lightIndex = 0; lightIndex < scene.numPointLights; lightIndex++)
         {
-            scene.lights[(scene.hasDirectionalLight + scene.numSpotLights)] = pointLights[lightIndex];
+            scene.lights[(scene.hasDirectionalLight + scene.numSpotLights) + lightIndex] = pointLights[lightIndex];
         }
 
         // Add scene cameras from config file

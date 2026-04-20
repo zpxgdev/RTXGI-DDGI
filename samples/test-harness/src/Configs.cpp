@@ -211,6 +211,56 @@ namespace Configs
         std::string data;
         PARSE_CHECK(Extract(rhs, data), lineNumber, log);
 
+        // Top-level DDGI toggles
+        if (tokens.size() == 2)
+        {
+            if (tokens[1].compare("enable") == 0) { Store(data, config.ddgi.enabled); return true; }
+            if (tokens[1].compare("enabled") == 0) { Store(data, config.ddgi.enabled); return true; }
+            if (tokens[1].compare("showProbes") == 0) { Store(data, config.ddgi.showProbes); return true; }
+            if (tokens[1].compare("showTextures") == 0) { Store(data, config.ddgi.showTextures); return true; }
+            if (tokens[1].compare("showIndirect") == 0) { Store(data, config.ddgi.showIndirect); return true; }
+            if (tokens[1].compare("insertPerfMarkers") == 0) { Store(data, config.ddgi.insertPerfMarkers); return true; }
+            if (tokens[1].compare("shaderExecutionReordering") == 0) { Store(data, config.ddgi.shaderExecutionReordering); return true; }
+            if (tokens[1].compare("selectedVolume") == 0) { Store(data, config.ddgi.selectedVolume); return true; }
+            if (tokens[1].compare("forceNoHysteresis") == 0) { Store(data, config.ddgi.forceNoHysteresis); return true; }
+            if (tokens[1].compare("forceNoHysteresisUpdateFrames") == 0) { Store(data, config.ddgi.forceNoHysteresisUpdateFrames); return true; }
+            if (tokens[1].compare("probeDebugDumpEnabled") == 0) { Store(data, config.ddgi.probeDebugDumpEnabled); return true; }
+            if (tokens[1].compare("probeDebugDumpVolume") == 0) { Store(data, config.ddgi.probeDebugDumpVolume); return true; }
+            if (tokens[1].compare("probeDebugDumpMaxProbes") == 0) { Store(data, config.ddgi.probeDebugDumpMaxProbes); return true; }
+            if (tokens[1].compare("sceneSyncExportEnabled") == 0) { Store(data, config.ddgi.sceneSyncExportEnabled); return true; }
+            if (tokens[1].compare("sceneSyncExportOnStartup") == 0) { Store(data, config.ddgi.sceneSyncExportOnStartup); return true; }
+            if (tokens[1].compare("sceneSyncExportPath") == 0) { config.ddgi.sceneSyncExportPath = data; return true; }
+            if (tokens[1].compare("sceneSyncDllPath") == 0) { config.ddgi.sceneSyncDllPath = data; return true; }
+        }
+
+        // Grouped debug keys
+        if (tokens.size() == 3 && tokens[1].compare("debug") == 0)
+        {
+            if (tokens[2].compare("forceNoHysteresis") == 0) { Store(data, config.ddgi.forceNoHysteresis); return true; }
+            if (tokens[2].compare("forceNoHysteresisUpdateFrames") == 0) { Store(data, config.ddgi.forceNoHysteresisUpdateFrames); return true; }
+            if (tokens[2].compare("forceNoHysteresisFrames") == 0) { Store(data, config.ddgi.forceNoHysteresisUpdateFrames); return true; }
+            if (tokens[2].compare("probeDumpEnabled") == 0) { Store(data, config.ddgi.probeDebugDumpEnabled); return true; }
+            if (tokens[2].compare("probeDumpVolume") == 0) { Store(data, config.ddgi.probeDebugDumpVolume); return true; }
+            if (tokens[2].compare("probeDumpMaxProbes") == 0) { Store(data, config.ddgi.probeDebugDumpMaxProbes); return true; }
+        }
+
+        if (tokens.size() == 4 && tokens[1].compare("debug") == 0 && tokens[2].compare("probeDump") == 0)
+        {
+            if (tokens[3].compare("enabled") == 0) { Store(data, config.ddgi.probeDebugDumpEnabled); return true; }
+            if (tokens[3].compare("volume") == 0) { Store(data, config.ddgi.probeDebugDumpVolume); return true; }
+            if (tokens[3].compare("maxProbes") == 0) { Store(data, config.ddgi.probeDebugDumpMaxProbes); return true; }
+        }
+
+        // Grouped scene sync export keys
+        if (tokens.size() == 3 && tokens[1].compare("sceneSync") == 0)
+        {
+            if (tokens[2].compare("enabled") == 0) { Store(data, config.ddgi.sceneSyncExportEnabled); return true; }
+            if (tokens[2].compare("onStartup") == 0) { Store(data, config.ddgi.sceneSyncExportOnStartup); return true; }
+            if (tokens[2].compare("exportOnStartup") == 0) { Store(data, config.ddgi.sceneSyncExportOnStartup); return true; }
+            if (tokens[2].compare("outputPath") == 0) { config.ddgi.sceneSyncExportPath = data; return true; }
+            if (tokens[2].compare("dllPath") == 0) { config.ddgi.sceneSyncDllPath = data; return true; }
+        }
+
         if (tokens[1].compare("volume") == 0)
         {
             int volumeIndex = stoi(tokens[2]);

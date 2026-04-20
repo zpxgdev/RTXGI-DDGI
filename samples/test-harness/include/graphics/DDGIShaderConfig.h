@@ -21,29 +21,43 @@
 // 1: RTXGI_COORDINATE_SYSTEM_LEFT_Z_UP
 // 2: RTXGI_COORDINATE_SYSTEM_RIGHT
 // 3: RTXGI_COORDINATE_SYSTEM_RIGHT_Z_UP
+#ifndef RTXGI_COORDINATE_SYSTEM
 #define RTXGI_COORDINATE_SYSTEM 2
+#endif
 
 // Use Shader Reflection?
 // 0: no
 // 1: yes
+#ifndef RTXGI_DDGI_SHADER_REFLECTION
 #define RTXGI_DDGI_SHADER_REFLECTION 0
+#endif
 
 // Bindless Resource implementation type
 // 0: RTXGI_BINDLESS_TYPE_RESOURCE_ARRAYS
 // 1: RTXGI_BINDLESS_TYPE_DESCRIPTOR_HEAP
+#ifndef RTXGI_BINDLESS_TYPE
 #define RTXGI_BINDLESS_TYPE 0
+#endif
 
 // Should DDGI use bindless resources?
 // 0: no
 // 1: yes
+#ifndef RTXGI_DDGI_BINDLESS_RESOURCES
 #define RTXGI_DDGI_BINDLESS_RESOURCES 0
+#endif
 
 //-------------------------------------------------------------------------------------------------
 // Optional Defines (including in this file since we compile with warnings as errors)
 // If you change one of these three options in CMake, you need to update them here too!
+#ifndef RTXGI_DDGI_DEBUG_PROBE_INDEXING
 #define RTXGI_DDGI_DEBUG_PROBE_INDEXING 0
+#endif
+#ifndef RTXGI_DDGI_DEBUG_OCTAHEDRAL_INDEXING
 #define RTXGI_DDGI_DEBUG_OCTAHEDRAL_INDEXING 0
+#endif
+#ifndef RTXGI_DDGI_DEBUG_BORDER_COPY_INDEXING
 #define RTXGI_DDGI_DEBUG_BORDER_COPY_INDEXING 0
+#endif
 
 #if RTXGI_DDGI_RESOURCE_MANAGEMENT && RTXGI_DDGI_BINDLESS_RESOURCES
     #error RTXGI SDK DDGI Managed Mode is not compatible with bindless resources!

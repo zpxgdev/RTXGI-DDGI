@@ -280,37 +280,38 @@ namespace Graphics
             const int UAV_RTAO_OUTPUT = UAV_GBUFFERD + 1;                           //  13:   1 UAV for the RTAO Output RWTexture
             const int UAV_RTAO_RAW = UAV_RTAO_OUTPUT + 1;                           //  14:   1 UAV for the RTAO Raw RWTexture
             const int UAV_DDGI_OUTPUT = UAV_RTAO_RAW + 1;                           //  15:   1 UAV for the DDGI RWTexture
+            const int UAV_DDGI_PROBE_DEBUG = UAV_DDGI_OUTPUT + 1;                   //  16:   1 UAV for the DDGI probe debug dump structured buffer
 
             // Texture2DArray UAV
-            const int UAV_TEX2DARRAY_START = UAV_DDGI_OUTPUT + 1;                   //  16:   RWTexture2DArray UAV Start
-            const int UAV_DDGI_VOLUME_TEX2DARRAY = UAV_TEX2DARRAY_START;            //  16:   36 UAV, 6 for each DDGIVolume (RayData, Irradiance, Distance, Probe Data, Variability, VariabilityAverage)
+            const int UAV_TEX2DARRAY_START = UAV_DDGI_PROBE_DEBUG + 1;              //  17:   RWTexture2DArray UAV Start
+            const int UAV_DDGI_VOLUME_TEX2DARRAY = UAV_TEX2DARRAY_START;            //  17:   36 UAV, 6 for each DDGIVolume (RayData, Irradiance, Distance, Probe Data, Variability, VariabilityAverage)
 
-            // Shader Resource Views                                                //  52:   SRV Start
+            // Shader Resource Views                                                //  53:   SRV Start
             const int SRV_START = UAV_DDGI_VOLUME_TEX2DARRAY + (rtxgi::GetDDGIVolumeNumTex2DArrayDescriptors() * MAX_DDGIVOLUMES);
 
             // RaytracingAccelerationStructure SRV
-            const int SRV_TLAS_START = SRV_START;                                   //  52:   TLAS SRV Start
-            const int SRV_SCENE_TLAS = SRV_TLAS_START;                              //  52:   1 SRV for the Scene TLAS
-            const int SRV_DDGI_PROBE_VIS_TLAS = SRV_SCENE_TLAS + 1;                 //  53:   1 SRV for the DDGI Probe Vis TLAS
+            const int SRV_TLAS_START = SRV_START;                                   //  53:   TLAS SRV Start
+            const int SRV_SCENE_TLAS = SRV_TLAS_START;                              //  53:   1 SRV for the Scene TLAS
+            const int SRV_DDGI_PROBE_VIS_TLAS = SRV_SCENE_TLAS + 1;                 //  54:   1 SRV for the DDGI Probe Vis TLAS
 
             // Texture2D SRV
-            const int SRV_TEX2D_START = SRV_TLAS_START + MAX_TLAS;                  //  54:   Texture2D SRV Start
-            const int SRV_BLUE_NOISE = SRV_TEX2D_START;                             //  54:   1 SRV for the Blue Noise Texture
-            const int SRV_IMGUI_FONTS = SRV_BLUE_NOISE + 1;                         //  55:   1 SRV for the ImGui Font Texture
-            const int SRV_SCENE_TEXTURES = SRV_IMGUI_FONTS + 1;                     //  56: 300 SRV (max), 1 SRV for each Material Texture
+            const int SRV_TEX2D_START = SRV_TLAS_START + MAX_TLAS;                  //  55:   Texture2D SRV Start
+            const int SRV_BLUE_NOISE = SRV_TEX2D_START;                             //  55:   1 SRV for the Blue Noise Texture
+            const int SRV_IMGUI_FONTS = SRV_BLUE_NOISE + 1;                         //  56:   1 SRV for the ImGui Font Texture
+            const int SRV_SCENE_TEXTURES = SRV_IMGUI_FONTS + 1;                     //  57: 300 SRV (max), 1 SRV for each Material Texture
 
             // Texture2DArray SRV
-            const int SRV_TEX2DARRAY_START = SRV_SCENE_TEXTURES + MAX_TEXTURES;     // 356:   Texture2DArray SRV Start
-            const int SRV_DDGI_VOLUME_TEX2DARRAY = SRV_TEX2DARRAY_START;            // 356:  36 SRV, 6 for each DDGIVolume (RayData, Irradiance, Distance, Probe Data, Variability, Variability Average)
+            const int SRV_TEX2DARRAY_START = SRV_SCENE_TEXTURES + MAX_TEXTURES;     // 357:   Texture2DArray SRV Start
+            const int SRV_DDGI_VOLUME_TEX2DARRAY = SRV_TEX2DARRAY_START;            // 357:  36 SRV, 6 for each DDGIVolume (RayData, Irradiance, Distance, Probe Data, Variability, Variability Average)
 
-            // ByteAddressBuffer SRV                                                // 392:   ByteAddressBuffer SRV Start
+            // ByteAddressBuffer SRV                                                // 393:   ByteAddressBuffer SRV Start
             const int SRV_BYTEADDRESS_START = SRV_TEX2DARRAY_START + (rtxgi::GetDDGIVolumeNumTex2DArrayDescriptors() * MAX_DDGIVOLUMES);
-            const int SRV_SPHERE_INDICES = SRV_BYTEADDRESS_START;                   // 392:  1 SRV for DDGI Probe Vis Sphere Index Buffer
-            const int SRV_SPHERE_VERTICES = SRV_SPHERE_INDICES + 1;                 // 393:  1 SRV for DDGI Probe Vis Sphere Vertex Buffer
-            const int SRV_MESH_OFFSETS = SRV_SPHERE_VERTICES + 1;                   // 394:  1 SRV for Mesh Offsets in the Geometry Data Buffer
-            const int SRV_GEOMETRY_DATA = SRV_MESH_OFFSETS + 1;                     // 395:  1 SRV for Geometry (Mesh Primitive) Data
-            const int SRV_INDICES = SRV_GEOMETRY_DATA + 1;                          // 396:  n SRV for Mesh Index Buffers
-            const int SRV_VERTICES = SRV_INDICES + 1;                               // 397:  n SRV for Mesh Vertex Buffers
+            const int SRV_SPHERE_INDICES = SRV_BYTEADDRESS_START;                   // 393:  1 SRV for DDGI Probe Vis Sphere Index Buffer
+            const int SRV_SPHERE_VERTICES = SRV_SPHERE_INDICES + 1;                 // 394:  1 SRV for DDGI Probe Vis Sphere Vertex Buffer
+            const int SRV_MESH_OFFSETS = SRV_SPHERE_VERTICES + 1;                   // 395:  1 SRV for Mesh Offsets in the Geometry Data Buffer
+            const int SRV_GEOMETRY_DATA = SRV_MESH_OFFSETS + 1;                     // 396:  1 SRV for Geometry (Mesh Primitive) Data
+            const int SRV_INDICES = SRV_GEOMETRY_DATA + 1;                          // 397:  n SRV for Mesh Index Buffers
+            const int SRV_VERTICES = SRV_INDICES + 1;                               // 398:  n SRV for Mesh Vertex Buffers
         };
     }
 

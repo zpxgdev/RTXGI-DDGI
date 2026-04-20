@@ -17,6 +17,7 @@
 #include "UI.h"
 #include "Window.h"
 #include "Benchmark.h"
+#include "SceneSyncExport.h"
 
 #include "graphics/PathTracing.h"
 #include "graphics/GBuffer.h"
@@ -188,6 +189,12 @@ int Run(const std::vector<std::string>& arguments)
     CHECK(Graphics::DDGI::Visualizations::Initialize(gfx, gfxResources, ddgi, ddgiVis, perf, config, log), "initialize dynamic diffuse global illumination visualization workload!\n", log);
     CHECK(Graphics::RTAO::Initialize(gfx, gfxResources, rtao, perf, log), "initialize ray traced ambient occlusion workload!\n", log);
     CHECK(Graphics::Composite::Initialize(gfx, gfxResources, composite, perf, log), "initialize composition workload!\n", log);
+
+    if (!SceneSyncExport::ExportIfRequested(config, scene, ddgi.volumeDescs, log))
+    {
+        log << "[SceneSync] Startup export failed.\n";
+    }
+    config.ddgi.sceneSyncExportOnStartup = false;
 
     // Initialize the user interface system
     log << "Initializing user interface...";

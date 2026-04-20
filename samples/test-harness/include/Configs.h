@@ -90,6 +90,15 @@ namespace Configs
         bool showIndirect = false;
         bool insertPerfMarkers = true;
         bool shaderExecutionReordering = false;
+        bool forceNoHysteresis = false;
+        uint32_t forceNoHysteresisUpdateFrames = 1;
+        bool probeDebugDumpEnabled = false;
+        uint32_t probeDebugDumpVolume = 0;
+        uint32_t probeDebugDumpMaxProbes = 128;
+        bool sceneSyncExportEnabled = false;
+        bool sceneSyncExportOnStartup = true;
+        std::string sceneSyncExportPath = "scene_sync_export.ron";
+        std::string sceneSyncDllPath = "D:/code/rg2/ffi/scene_sync/cpp/rg_scene_sync.dll";
         uint32_t selectedVolume = 0;
         std::vector<DDGIVolume> volumes;
     };
@@ -201,9 +210,9 @@ namespace Configs
     struct Shaders
     {
         bool  warningsAsErrors = true;      // treat warnings as errors
-        bool  disableOptimizations = false; // disable optimizations
+        bool  disableOptimizations = true;  // disable optimizations
         bool  disableValidation = false;    // disable validation
-        bool  shaderSymbols = false;        // include symbols in shader blobs
+        bool  shaderSymbols = true;         // include symbols in shader blobs
         bool  lifetimeMarkers = false;      // enable variable lifetime markers
     };
 
