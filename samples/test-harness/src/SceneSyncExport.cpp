@@ -89,6 +89,121 @@ namespace
         return MakeTransformWithQuaternion(x, y, z, 0.f, 0.f, 0.f, 1.f);
     }
 
+    template <typename MatrixT>
+    rg_scene::Transform MakeTransformFromMatrix(const MatrixT& matrix)
+    {
+        const float m00 = static_cast<float>(matrix[0][0]);
+        const float m01 = static_cast<float>(matrix[0][1]);
+        const float m02 = static_cast<float>(matrix[0][2]);
+        const float m03 = static_cast<float>(matrix[0][3]);
+        const float m10 = static_cast<float>(matrix[1][0]);
+        const float m11 = static_cast<float>(matrix[1][1]);
+        const float m12 = static_cast<float>(matrix[1][2]);
+        const float m13 = static_cast<float>(matrix[1][3]);
+        const float m20 = static_cast<float>(matrix[2][0]);
+        const float m21 = static_cast<float>(matrix[2][1]);
+        const float m22 = static_cast<float>(matrix[2][2]);
+        const float m23 = static_cast<float>(matrix[2][3]);
+
+        float sx = std::sqrt((m00 * m00) + (m10 * m10) + (m20 * m20));
+        float sy = std::sqrt((m01 * m01) + (m11 * m11) + (m21 * m21));
+        float sz = std::sqrt((m02 * m02) + (m12 * m12) + (m22 * m22));
+
+        if (sx <= 1e-8f) sx = 1.f;
+        if (sy <= 1e-8f) sy = 1.f;
+        if (sz <= 1e-8f) sz = 1.f;
+
+        float r00 = m00 / sx;
+        float r01 = m01 / sy;
+        float r02 = m02 / sz;
+        float r10 = m10 / sx;
+        float r11 = m11 / sy;
+        float r12 = m12 / sz;
+        float r20 = m20 / sx;
+        float r21 = m21 / sy;
+        float r22 = m22 / sz;
+
+        const float det =
+            r00 * (r11 * r22 - r12 * r21) -
+            r01 * (r10 * r22 - r12 * r20) +
+            r02 * (r10 * r21 - r11 * r20);
+
+        if (det < 0.f)
+        {
+            sz = -sz;
+            r02 = -r02;
+            r12 = -r12;
+            r22 = -r22;
+        }
+
+        float qx = 0.f;
+        float qy = 0.f;
+        float qz = 0.f;
+        float qw = 1.f;
+
+        const float trace = r00 + r11 + r22;
+        if (trace > 0.f)
+        {
+            const float s = std::sqrt(trace + 1.f) * 2.f;
+            qw = 0.25f * s;
+            qx = (r21 - r12) / s;
+            qy = (r02 - r20) / s;
+            qz = (r10 - r01) / s;
+        }
+        else if (r00 > r11 && r00 > r22)
+        {
+            const float s = std::sqrt(1.f + r00 - r11 - r22) * 2.f;
+            qw = (r21 - r12) / s;
+            qx = 0.25f * s;
+            qy = (r01 + r10) / s;
+            qz = (r02 + r20) / s;
+        }
+        else if (r11 > r22)
+        {
+            const float s = std::sqrt(1.f + r11 - r00 - r22) * 2.f;
+            qw = (r02 - r20) / s;
+            qx = (r01 + r10) / s;
+            qy = 0.25f * s;
+            qz = (r12 + r21) / s;
+        }
+        else
+        {
+            const float s = std::sqrt(1.f + r22 - r00 - r11) * 2.f;
+            qw = (r10 - r01) / s;
+            qx = (r02 + r20) / s;
+            qy = (r12 + r21) / s;
+            qz = 0.25f * s;
+        }
+
+        const float qLenSq = (qx * qx) + (qy * qy) + (qz * qz) + (qw * qw);
+        if (qLenSq > 1e-8f)
+        {
+            const float invQLen = 1.f / std::sqrt(qLenSq);
+            qx *= invQLen;
+            qy *= invQLen;
+            qz *= invQLen;
+            qw *= invQLen;
+        }
+        else
+        {
+            qx = 0.f;
+            qy = 0.f;
+            qz = 0.f;
+            qw = 1.f;
+        }
+
+        rg_scene::Transform transform;
+        rg_scene::Quat rotation;
+        rotation.x(qx).y(qy).z(qz).w(qw);
+
+        transform
+            .translation(MakeVec3(m03, m13, m23))
+            .rotation(std::move(rotation))
+            .scale(MakeVec3(sx, sy, sz));
+
+        return transform;
+    }
+
     std::array<float, 4> MakeQuaternionFromDirection(float dx, float dy, float dz)
     {
         const float lenSq = (dx * dx) + (dy * dy) + (dz * dz);
@@ -134,11 +249,36 @@ namespace
     {
         rg_scene::SceneCoordSys coord;
 
-        // UE convention: centimeters, Z-up, and X-forward / Y-right.
+        // Match exported coord_sys to the test-harness runtime coordinate system.
+        // Units are centimeters in scene_sync export for current rg2 scene conventions.
         coord.unit_scale(0.01f);
+
+    #if COORDINATE_SYSTEM == COORDINATE_SYSTEM_LEFT
+        // Left-handed, Y-up.
+        coord.right(MakeVec3(1.f, 0.f, 0.f));
+        coord.up(MakeVec3(0.f, 1.f, 0.f));
+        coord.forward(MakeVec3(0.f, 0.f, 1.f));
+    #elif COORDINATE_SYSTEM == COORDINATE_SYSTEM_LEFT_Z_UP
+        // Left-handed, Z-up (UE-like).
         coord.right(MakeVec3(0.f, 1.f, 0.f));
         coord.up(MakeVec3(0.f, 0.f, 1.f));
         coord.forward(MakeVec3(1.f, 0.f, 0.f));
+    #elif COORDINATE_SYSTEM == COORDINATE_SYSTEM_RIGHT
+        // Right-handed, Y-up.
+        coord.right(MakeVec3(1.f, 0.f, 0.f));
+        coord.up(MakeVec3(0.f, 1.f, 0.f));
+        coord.forward(MakeVec3(0.f, 0.f, -1.f));
+    #elif COORDINATE_SYSTEM == COORDINATE_SYSTEM_RIGHT_Z_UP
+        // Right-handed, Z-up.
+        coord.right(MakeVec3(1.f, 0.f, 0.f));
+        coord.up(MakeVec3(0.f, 0.f, 1.f));
+        coord.forward(MakeVec3(0.f, 1.f, 0.f));
+    #else
+        // Fallback to Left-Z-Up when macro is missing or unexpected.
+        coord.right(MakeVec3(0.f, 1.f, 0.f));
+        coord.up(MakeVec3(0.f, 0.f, 1.f));
+        coord.forward(MakeVec3(1.f, 0.f, 0.f));
+    #endif
 
         return coord;
     }
@@ -512,11 +652,8 @@ namespace
             meshRef.path(meshPaths[instance.meshIndex]);
             staticMesh.mesh(std::move(meshRef));
 
-            const float tx = instance.transform[0][3];
-            const float ty = instance.transform[1][3];
-            const float tz = instance.transform[2][3];
-            staticMesh.transform(MakeTransform(tx, ty, tz));
-            staticMesh.local_transform(MakeTransform(tx, ty, tz));
+            staticMesh.transform(MakeTransformFromMatrix(instance.transform));
+            staticMesh.local_transform(MakeTransformFromMatrix(instance.transform));
 
             const Scenes::Mesh& sourceMesh = sourceScene.meshes[instance.meshIndex];
             std::vector<int> primitiveMaterialIndices;
@@ -541,6 +678,138 @@ namespace
                 .components(std::move(components));
 
             actors.push(std::move(actor));
+        }
+    }
+
+    void FillCameraActors(const Scenes::Scene& sourceScene, rg_scene::Vec<rg_scene::Actor>& actors)
+    {
+        const size_t cameraCount = sourceScene.cameras.size();
+        if (cameraCount == 0)
+        {
+            return;
+        }
+
+        auto normalize3 = [](float& x, float& y, float& z, float fx, float fy, float fz)
+        {
+            const float lenSq = (x * x) + (y * y) + (z * z);
+            if (lenSq <= 1e-8f)
+            {
+                x = fx;
+                y = fy;
+                z = fz;
+                return;
+            }
+            const float invLen = 1.f / std::sqrt(lenSq);
+            x *= invLen;
+            y *= invLen;
+            z *= invLen;
+        };
+
+        auto appendCamera = [&](size_t cameraIndex)
+        {
+            if (cameraIndex >= cameraCount)
+            {
+                return;
+            }
+
+            const Scenes::Camera& sourceCamera = sourceScene.cameras[cameraIndex];
+            const std::string cameraName = sourceCamera.name.empty()
+                ? ("camera_" + std::to_string(cameraIndex))
+                : sourceCamera.name;
+
+            float eyeX = sourceCamera.data.position.x;
+            float eyeY = sourceCamera.data.position.y;
+            float eyeZ = sourceCamera.data.position.z;
+
+            float forwardX = sourceCamera.data.forward.x;
+            float forwardY = sourceCamera.data.forward.y;
+            float forwardZ = sourceCamera.data.forward.z;
+            normalize3(forwardX, forwardY, forwardZ, 1.f, 0.f, 0.f);
+
+            float upX = sourceCamera.data.up.x;
+            float upY = sourceCamera.data.up.y;
+            float upZ = sourceCamera.data.up.z;
+            normalize3(upX, upY, upZ, 0.f, 0.f, 1.f);
+
+            // Keep exported camera basis stable: up must not be collinear with forward.
+            float dotFU = (forwardX * upX) + (forwardY * upY) + (forwardZ * upZ);
+            if (std::abs(dotFU) > 0.999f)
+            {
+                upX = 0.f;
+                upY = 0.f;
+                upZ = 1.f;
+                dotFU = (forwardX * upX) + (forwardY * upY) + (forwardZ * upZ);
+
+                if (std::abs(dotFU) > 0.999f)
+                {
+                    upX = 0.f;
+                    upY = 1.f;
+                    upZ = 0.f;
+                    dotFU = (forwardX * upX) + (forwardY * upY) + (forwardZ * upZ);
+                }
+            }
+
+            upX -= dotFU * forwardX;
+            upY -= dotFU * forwardY;
+            upZ -= dotFU * forwardZ;
+            normalize3(upX, upY, upZ, 0.f, 0.f, 1.f);
+
+            float fovDeg = sourceCamera.data.fov;
+            if (!std::isfinite(fovDeg) || fovDeg <= 1e-4f)
+            {
+                fovDeg = 45.f;
+            }
+
+            float aspectRatio = sourceCamera.data.aspect;
+            if (!std::isfinite(aspectRatio) || aspectRatio <= 1e-6f)
+            {
+                aspectRatio = 1.f;
+            }
+
+            rg_scene::CameraComponent camera;
+            camera.name(cameraName);
+
+            rg_scene::Angle::Degree fov;
+            fov._0(fovDeg);
+            camera.fov(std::move(fov));
+            camera.near(0.1f);
+            camera.far(50000.f);
+            camera.aspect_ratio(aspectRatio);
+
+            rg_scene::LookAt lookAt;
+            lookAt.eye(MakeVec3(eyeX, eyeY, eyeZ));
+            lookAt.target(MakeVec3(eyeX + forwardX, eyeY + forwardY, eyeZ + forwardZ));
+            lookAt.up(MakeVec3(upX, upY, upZ));
+            camera.look_at(std::move(lookAt));
+
+            rg_scene::Component::Camera cameraComponent;
+            cameraComponent._0(std::move(camera));
+
+            rg_scene::Vec<rg_scene::Component> components;
+            components.push(std::move(cameraComponent));
+
+            rg_scene::Actor actor;
+            actor
+                .label(cameraName)
+                .name(cameraName)
+                .hidden(false)
+                .components(std::move(components));
+
+            actors.push(std::move(actor));
+        };
+
+        if (sourceScene.activeCamera < cameraCount)
+        {
+            appendCamera(sourceScene.activeCamera);
+        }
+
+        for (size_t cameraIndex = 0; cameraIndex < cameraCount; cameraIndex++)
+        {
+            if (cameraIndex == sourceScene.activeCamera)
+            {
+                continue;
+            }
+            appendCamera(cameraIndex);
         }
     }
 
@@ -677,6 +946,7 @@ namespace SceneSyncExport
 
         rg_scene::Vec<rg_scene::Actor> actors;
         FillMeshesAndActors(scene, materialPaths, exportScene, actors);
+        FillCameraActors(scene, actors);
         FillLightActors(scene, actors);
         exportScene.actors(std::move(actors));
 
