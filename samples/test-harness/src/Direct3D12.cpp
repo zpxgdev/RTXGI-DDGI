@@ -878,6 +878,7 @@ namespace Graphics
         bool CreateGlobalRootSignature(Globals& d3d, Resources& resources)
         {
             std::vector<D3D12_ROOT_PARAMETER> rootParameters;
+            D3D12_DESCRIPTOR_RANGE debugProbeRange = {};
 
         #if RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_RESOURCE_ARRAYS
             // Descriptor Heap Ranges
@@ -1046,6 +1047,24 @@ namespace Graphics
                 param.Constants.Num32BitValues = DDGIRootConstants::GetAlignedNum32BitValues();
                 rootParameters.push_back(param);
             }
+
+        #if RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_DESCRIPTOR_HEAP
+            // Root Parameter 2: DDGI probe debug records SRV descriptor table (t8, space4)
+            {
+                debugProbeRange.BaseShaderRegister = 8;
+                debugProbeRange.NumDescriptors = 1;
+                debugProbeRange.RegisterSpace = 4;
+                debugProbeRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+                debugProbeRange.OffsetInDescriptorsFromTableStart = 0;
+
+                D3D12_ROOT_PARAMETER param = {};
+                param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+                param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+                param.DescriptorTable.NumDescriptorRanges = 1;
+                param.DescriptorTable.pDescriptorRanges = &debugProbeRange;
+                rootParameters.push_back(param);
+            }
+        #endif
 
         #if RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_RESOURCE_ARRAYS
             // Root Parameter 2: Sampler Descriptor Table

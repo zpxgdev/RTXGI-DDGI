@@ -590,6 +590,7 @@ void DDGIProbeBlendingCS(
             numProbes,
             volumeIndex,
             volume,
+            RayData,
             ProbeIrradianceForDebug,
             ProbeDistanceForDebug,
             ProbeData);

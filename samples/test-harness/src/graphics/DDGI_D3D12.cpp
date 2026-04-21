@@ -34,7 +34,7 @@ namespace Graphics
             static const UINT PROBE_DEBUG_HEADER_ENTRIES = 0;
             static const UINT PROBE_DEBUG_PASS_COUNT = 3;
             static const UINT PROBE_DEBUG_MAX_VOLUMES = MAX_DDGIVOLUMES;
-            static const UINT PROBE_DEBUG_RECORD_STRIDE_BYTES = sizeof(float) * 4 * 5;
+            static const UINT PROBE_DEBUG_RECORD_STRIDE_BYTES = sizeof(float) * 4 * 13;
 
             //----------------------------------------------------------------------------------------------------------
             // DDGIVolume Resource Creation Functions (Unmanaged Mode)
@@ -1053,6 +1053,10 @@ namespace Graphics
             #if RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_RESOURCE_ARRAYS
                 d3d.cmdList[d3d.frameIndex]->SetComputeRootDescriptorTable(2, d3dResources.samplerDescHeap->GetGPUDescriptorHandleForHeapStart());
                 d3d.cmdList[d3d.frameIndex]->SetComputeRootDescriptorTable(3, d3dResources.srvDescHeap->GetGPUDescriptorHandleForHeapStart());
+            #elif RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_DESCRIPTOR_HEAP
+                D3D12_GPU_DESCRIPTOR_HANDLE debugProbeHandle = d3dResources.srvDescHeap->GetGPUDescriptorHandleForHeapStart();
+                debugProbeHandle.ptr += (DescriptorHeapOffsets::SRV_DDGI_PROBE_DEBUG * d3dResources.srvDescHeapEntrySize);
+                d3d.cmdList[d3d.frameIndex]->SetComputeRootDescriptorTable(2, debugProbeHandle);
             #endif
 
                 // Set the RTPSO
@@ -1147,6 +1151,10 @@ namespace Graphics
             #if RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_RESOURCE_ARRAYS
                 d3d.cmdList[d3d.frameIndex]->SetComputeRootDescriptorTable(2, d3dResources.samplerDescHeap->GetGPUDescriptorHandleForHeapStart());
                 d3d.cmdList[d3d.frameIndex]->SetComputeRootDescriptorTable(3, d3dResources.srvDescHeap->GetGPUDescriptorHandleForHeapStart());
+            #elif RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_DESCRIPTOR_HEAP
+                D3D12_GPU_DESCRIPTOR_HANDLE debugProbeHandle = d3dResources.srvDescHeap->GetGPUDescriptorHandleForHeapStart();
+                debugProbeHandle.ptr += (DescriptorHeapOffsets::SRV_DDGI_PROBE_DEBUG * d3dResources.srvDescHeapEntrySize);
+                d3d.cmdList[d3d.frameIndex]->SetComputeRootDescriptorTable(2, debugProbeHandle);
             #endif
 
                 // Set the PSO

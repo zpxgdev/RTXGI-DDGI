@@ -34,11 +34,19 @@
 
 struct DDGIProbeDebugRecord
 {
-    uint4 header;
-    uint4 layout;
-    float4 probeMeta;
-    float4 irradianceDistance;
-    float4 probeOffsetDistance;
+    uint4 probe_meta;
+    float4 trace_probe;
+    float4 trace_fixed_ray_dir_kind;
+    float4 trace_fixed_ray_data;
+    float4 trace_random_ray_dir_kind;
+    float4 trace_random_ray_data;
+    float4 relocate_stats;
+    float4 relocate_offset;
+    uint4 classify_stats;
+    float4 classify_probe;
+    float4 irradiance_center;
+    float4 distance_center;
+    float4 packed_state;
 };
 
 #if DDGI_PROBE_DEBUG_RECORDS_ENABLED && RTXGI_DDGI_BINDLESS_RESOURCES && (RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_DESCRIPTOR_HEAP)
@@ -52,6 +60,7 @@ void DDGIWriteProbeDebugRecord(
     uint totalProbes,
     uint volumeIndex,
     DDGIVolumeDescGPU volume,
+    RWTexture2DArray<float4> RayData,
     RWTexture2DArray<float4> ProbeIrradiance,
     RWTexture2DArray<float4> ProbeDistance,
     RWTexture2DArray<float4> ProbeData)
@@ -93,6 +102,45 @@ void DDGIWriteProbeDebugRecord(
 
     float probeState = probeData.a;
     float3 probeOffset = DDGILoadProbeDataOffset(ProbeData, probeTexel, volume);
+    float3 probeWorldPos = DDGIGetProbeWorldPosition(probeCoords, volume, ProbeData);
+
+    uint maxFixedRays = min((uint)volume.probeNumRays, (uint)RTXGI_DDGI_NUM_FIXED_RAYS);
+    uint fixedRayIndex = 0;
+    uint randomRayIndex = (volume.probeNumRays > RTXGI_DDGI_NUM_FIXED_RAYS)
+        ? (uint)RTXGI_DDGI_NUM_FIXED_RAYS
+        : (maxFixedRays > 0 ? (maxFixedRays - 1) : 0);
+
+    uint3 fixedRayTexel = DDGIGetRayDataTexelCoords((int)fixedRayIndex, (int)probeIndex, volume);
+    float3 fixedRayDir = DDGIGetProbeRayDirection((int)fixedRayIndex, volume);
+    float fixedRayDistance = DDGILoadProbeRayDistance(RayData, fixedRayTexel, volume);
+    float3 fixedRayRadiance = DDGILoadProbeRayRadiance(RayData, fixedRayTexel, volume);
+
+    uint3 randomRayTexel = DDGIGetRayDataTexelCoords((int)randomRayIndex, (int)probeIndex, volume);
+    float3 randomRayDir = DDGIGetProbeRayDirection((int)randomRayIndex, volume);
+    float randomRayDistance = DDGILoadProbeRayDistance(RayData, randomRayTexel, volume);
+    float3 randomRayRadiance = DDGILoadProbeRayRadiance(RayData, randomRayTexel, volume);
+
+    int numRays = min(volume.probeNumRays, RTXGI_DDGI_NUM_FIXED_RAYS);
+    float closestBackfaceDistance = 1e27f;
+    float closestFrontfaceDistance = 1e27f;
+    float farthestFrontfaceDistance = 0.f;
+    uint backfaceCount = 0;
+    for (int rayIndex = 0; rayIndex < numRays; rayIndex++)
+    {
+        int3 rayTexel = DDGIGetRayDataTexelCoords(rayIndex, (int)probeIndex, volume);
+        float hitDistance = DDGILoadProbeRayDistance(RayData, rayTexel, volume);
+        if (hitDistance < 0.f)
+        {
+            backfaceCount++;
+            hitDistance = hitDistance * -5.f;
+            if (hitDistance < closestBackfaceDistance) closestBackfaceDistance = hitDistance;
+        }
+        else
+        {
+            if (hitDistance < closestFrontfaceDistance) closestFrontfaceDistance = hitDistance;
+            if (hitDistance > farthestFrontfaceDistance) farthestFrontfaceDistance = hitDistance;
+        }
+    }
 
     uint segmentStride = maxProbeRecordsPerPass;
     uint baseIndex = volumeBase
@@ -100,11 +148,19 @@ void DDGIWriteProbeDebugRecord(
         + probeIndex;
 
     DDGIProbeDebugRecord record = (DDGIProbeDebugRecord)0;
-    record.header = uint4(totalProbes, probesToDump, volume.probeNumRays, volumeIndex);
-    record.layout = uint4(DDGI_PROBE_DEBUG_PASS_COUNT, maxProbeRecordsPerPass, DDGI_PROBE_DEBUG_RECORDS_PER_PROBE, DDGI_PROBE_DEBUG_PASS_INDEX);
-    record.probeMeta = float4((float3)probeCoords, probeState);
-    record.irradianceDistance = float4(irradiance.rgb, distanceMoments.x);
-    record.probeOffsetDistance = float4(probeOffset, distanceMoments.y);
+    record.probe_meta = uint4((uint3)probeCoords, probeIndex);
+    record.trace_probe = float4(probeWorldPos, probeState);
+    record.trace_fixed_ray_dir_kind = float4(fixedRayDir, fixedRayDistance < 0.f ? 1.f : 0.f);
+    record.trace_fixed_ray_data = float4(fixedRayRadiance, fixedRayDistance);
+    record.trace_random_ray_dir_kind = float4(randomRayDir, randomRayDistance < 0.f ? 1.f : 0.f);
+    record.trace_random_ray_data = float4(randomRayRadiance, randomRayDistance);
+    record.relocate_stats = float4(closestBackfaceDistance, closestFrontfaceDistance, farthestFrontfaceDistance, (numRays > 0) ? (((float)backfaceCount) / ((float)numRays)) : 0.f);
+    record.relocate_offset = float4(probeOffset, length(probeOffset));
+    record.classify_stats = uint4(backfaceCount, (uint)numRays, (uint)(((uint)probeState) == RTXGI_DDGI_PROBE_STATE_ACTIVE), 0u);
+    record.classify_probe = float4(probeWorldPos, probeState);
+    record.irradiance_center = float4(irradiance.rgb, distanceMoments.x);
+    record.distance_center = float4(distanceMoments.xy, 0.f, 0.f);
+    record.packed_state = float4(probeOffset, probeState);
 
     ProbeDebugOut[baseIndex] = record;
 }
@@ -116,6 +172,7 @@ void DDGIWriteProbeDebugRecord(
     uint totalProbes,
     uint volumeIndex,
     DDGIVolumeDescGPU volume,
+    RWTexture2DArray<float4> RayData,
     RWTexture2DArray<float4> ProbeIrradiance,
     RWTexture2DArray<float4> ProbeDistance,
     RWTexture2DArray<float4> ProbeData)

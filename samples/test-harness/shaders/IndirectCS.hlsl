@@ -40,6 +40,10 @@
 #include "../../../rtxgi-sdk/shaders/ddgi/include/ProbeDebugRecords.hlsl"
 #include "../../../rtxgi-sdk/shaders/ddgi/Irradiance.hlsl"
 
+#if RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_DESCRIPTOR_HEAP
+StructuredBuffer<DDGIProbeDebugRecord> DDGIProbeDebugRecords : register(t8, space4);
+#endif
+
 // ---[ Compute Shader ]---
 
 [numthreads(THGP_DIM_X, THGP_DIM_Y, 1)]
@@ -72,17 +76,16 @@ void CS(uint3 DispatchThreadID : SV_DispatchThreadID)
         // Touch DDGI probe debug records so this pass references the data in frame captures.
         // The branch condition is intentionally unreachable for normal data and does not affect output.
     #if RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_DESCRIPTOR_HEAP
-        StructuredBuffer<DDGIProbeDebugRecord> ProbeDebug = ResourceDescriptorHeap[DDGI_PROBE_DEBUG_SRV_INDEX];
         uint debugEntries = 0;
         uint debugStride = 0;
-        ProbeDebug.GetDimensions(debugEntries, debugStride);
+        DDGIProbeDebugRecords.GetDimensions(debugEntries, debugStride);
         if (debugEntries > 0)
         {
             uint debugIndex = min(debugEntries - 1, ((DispatchThreadID.x + DispatchThreadID.y) & 3));
-            DDGIProbeDebugRecord debugSample = ProbeDebug[debugIndex];
-            if (debugSample.layout.w == 255u)
+            DDGIProbeDebugRecord debugSample = DDGIProbeDebugRecords[debugIndex];
+            if (debugSample.packed_state.w < -1.f)
             {
-                irradiance += debugSample.probeMeta.xyz;
+                irradiance += debugSample.trace_probe.xyz;
             }
         }
     #endif

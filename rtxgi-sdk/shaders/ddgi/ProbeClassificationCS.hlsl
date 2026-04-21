@@ -172,6 +172,7 @@ void DDGIProbeClassificationCS(uint3 DispatchThreadID : SV_DispatchThreadID)
             (uint)numProbes,
             volumeIndex,
             volume,
+            RayData,
             ProbeIrradianceForDebug,
             ProbeDistanceForDebug,
             ProbeData);
@@ -232,6 +233,7 @@ void DDGIProbeClassificationCS(uint3 DispatchThreadID : SV_DispatchThreadID)
                 (uint)numProbes,
                 volumeIndex,
                 volume,
+                RayData,
                 ProbeIrradianceForDebug,
                 ProbeDistanceForDebug,
                 ProbeData);
@@ -248,6 +250,7 @@ void DDGIProbeClassificationCS(uint3 DispatchThreadID : SV_DispatchThreadID)
         (uint)numProbes,
         volumeIndex,
         volume,
+        RayData,
         ProbeIrradianceForDebug,
         ProbeDistanceForDebug,
         ProbeData);
