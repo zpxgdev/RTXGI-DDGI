@@ -16,6 +16,18 @@
     #error Required define DDGI_PROBE_DEBUG_UAV_INDEX is not defined for ProbeDebugDumpCS.hlsl!
 #endif
 
+#ifndef DDGI_PROBE_DEBUG_PASS_COUNT
+    #error Required define DDGI_PROBE_DEBUG_PASS_COUNT is not defined for ProbeDebugDumpCS.hlsl!
+#endif
+
+#ifndef DDGI_PROBE_DEBUG_PASS_INDEX
+    #error Required define DDGI_PROBE_DEBUG_PASS_INDEX is not defined for ProbeDebugDumpCS.hlsl!
+#endif
+
+#ifndef DDGI_PROBE_DEBUG_HEADER_ENTRIES
+    #error Required define DDGI_PROBE_DEBUG_HEADER_ENTRIES is not defined for ProbeDebugDumpCS.hlsl!
+#endif
+
 #include "../include/Descriptors.hlsl"
 
 #include "../../../../rtxgi-sdk/shaders/ddgi/include/DDGIRootConstants.hlsl"
@@ -28,6 +40,8 @@
 [numthreads(THGP_DIM_X, 1, 1)]
 void CS(uint3 DispatchThreadID : SV_DispatchThreadID)
 {
+    const uint ProbeDebugRecordsPerProbe = 3;
+
     uint volumeIndex = GetDDGIVolumeIndex();
 
     StructuredBuffer<DDGIVolumeDescGPUPacked> DDGIVolumes = GetDDGIVolumeConstants(GetDDGIVolumeConstantsIndex());
@@ -47,17 +61,22 @@ void CS(uint3 DispatchThreadID : SV_DispatchThreadID)
     uint debugBufferStride = 0;
     ProbeDebugOut.GetDimensions(debugBufferEntries, debugBufferStride);
 
-    uint maxProbeRecords = 0;
-    if (debugBufferEntries > 1)
+    uint maxProbeRecordsPerPass = 0;
+    if (debugBufferEntries > DDGI_PROBE_DEBUG_HEADER_ENTRIES)
     {
-        maxProbeRecords = (debugBufferEntries - 1) / 3;
+        maxProbeRecordsPerPass = (debugBufferEntries - DDGI_PROBE_DEBUG_HEADER_ENTRIES) / (ProbeDebugRecordsPerProbe * DDGI_PROBE_DEBUG_PASS_COUNT);
     }
 
-    uint probesToDump = min(totalProbes, maxProbeRecords);
+    uint probesToDump = min(totalProbes, maxProbeRecordsPerPass);
 
     if (DispatchThreadID.x == 0)
     {
-        ProbeDebugOut[0] = float4((float)totalProbes, (float)probesToDump, (float)volume.probeNumRays, (float)volumeIndex);
+        if (DDGI_PROBE_DEBUG_PASS_INDEX == 0)
+        {
+            ProbeDebugOut[0] = float4((float)totalProbes, (float)probesToDump, (float)volume.probeNumRays, (float)volumeIndex);
+        }
+
+        ProbeDebugOut[1] = float4((float)DDGI_PROBE_DEBUG_PASS_COUNT, (float)maxProbeRecordsPerPass, (float)ProbeDebugRecordsPerProbe, (float)DDGI_PROBE_DEBUG_PASS_INDEX);
     }
 
     uint probeIndex = DispatchThreadID.x;
@@ -82,7 +101,8 @@ void CS(uint3 DispatchThreadID : SV_DispatchThreadID)
     float probeState = probeData.a;
     float3 probeOffset = DDGILoadProbeDataOffset(ProbeData, probeTexel, volume);
 
-    uint baseIndex = 1 + (probeIndex * 3);
+    uint segmentStride = maxProbeRecordsPerPass * ProbeDebugRecordsPerProbe;
+    uint baseIndex = DDGI_PROBE_DEBUG_HEADER_ENTRIES + (DDGI_PROBE_DEBUG_PASS_INDEX * segmentStride) + (probeIndex * ProbeDebugRecordsPerProbe);
     ProbeDebugOut[baseIndex + 0] = float4((float3)probeCoords, probeState);
     ProbeDebugOut[baseIndex + 1] = float4(irradiance.rgb, distanceMoments.x);
     ProbeDebugOut[baseIndex + 2] = float4(probeOffset, distanceMoments.y);

@@ -89,6 +89,8 @@
 
 #endif // RTXGI_DDGI_BINDLESS_RESOURCES
 
+#include "include/ProbeDebugRecords.hlsl"
+
 [numthreads(32, 1, 1)]
 void DDGIProbeClassificationCS(uint3 DispatchThreadID : SV_DispatchThreadID)
 {
@@ -121,6 +123,11 @@ void DDGIProbeClassificationCS(uint3 DispatchThreadID : SV_DispatchThreadID)
         // Get the volume's ray data and probe data UAVs from the descriptor heap (SM6.6+ only)
         RWTexture2DArray<float4> RayData = ResourceDescriptorHeap[resourceIndices.rayDataUAVIndex];
         RWTexture2DArray<float4> ProbeData = ResourceDescriptorHeap[resourceIndices.probeDataUAVIndex];
+
+    #if DDGI_PROBE_DEBUG_RECORDS_ENABLED && (RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_DESCRIPTOR_HEAP)
+        RWTexture2DArray<float4> ProbeIrradianceForDebug = ResourceDescriptorHeap[resourceIndices.probeIrradianceUAVIndex];
+        RWTexture2DArray<float4> ProbeDistanceForDebug = ResourceDescriptorHeap[resourceIndices.probeDistanceUAVIndex];
+    #endif
     #elif RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_RESOURCE_ARRAYS
         // Get the volume's resource indices
         DDGIVolumeResourceIndices resourceIndices = DDGIVolumeBindless[volumeIndex];
@@ -158,6 +165,17 @@ void DDGIProbeClassificationCS(uint3 DispatchThreadID : SV_DispatchThreadID)
     if(((float)backfaceCount / (float)RTXGI_DDGI_NUM_FIXED_RAYS) > volume.probeFixedRayBackfaceThreshold)
     {
         ProbeData[outputCoords].w = RTXGI_DDGI_PROBE_STATE_INACTIVE;
+
+    #if DDGI_PROBE_DEBUG_RECORDS_ENABLED && RTXGI_DDGI_BINDLESS_RESOURCES && (RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_DESCRIPTOR_HEAP)
+        DDGIWriteProbeDebugRecord(
+            probeIndex,
+            (uint)numProbes,
+            volumeIndex,
+            volume,
+            ProbeIrradianceForDebug,
+            ProbeDistanceForDebug,
+            ProbeData);
+    #endif
         return;
     }
 
@@ -207,11 +225,33 @@ void DDGIProbeClassificationCS(uint3 DispatchThreadID : SV_DispatchThreadID)
         if(hitDistances[rayIndex] <= maxDistance)
         {
             ProbeData[outputCoords].w = RTXGI_DDGI_PROBE_STATE_ACTIVE;
+
+        #if DDGI_PROBE_DEBUG_RECORDS_ENABLED && RTXGI_DDGI_BINDLESS_RESOURCES && (RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_DESCRIPTOR_HEAP)
+            DDGIWriteProbeDebugRecord(
+                probeIndex,
+                (uint)numProbes,
+                volumeIndex,
+                volume,
+                ProbeIrradianceForDebug,
+                ProbeDistanceForDebug,
+                ProbeData);
+        #endif
             return;
         }
     }
 
     ProbeData[outputCoords].w = RTXGI_DDGI_PROBE_STATE_INACTIVE;
+
+#if DDGI_PROBE_DEBUG_RECORDS_ENABLED && RTXGI_DDGI_BINDLESS_RESOURCES && (RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_DESCRIPTOR_HEAP)
+    DDGIWriteProbeDebugRecord(
+        probeIndex,
+        (uint)numProbes,
+        volumeIndex,
+        volume,
+        ProbeIrradianceForDebug,
+        ProbeDistanceForDebug,
+        ProbeData);
+#endif
 }
 
 

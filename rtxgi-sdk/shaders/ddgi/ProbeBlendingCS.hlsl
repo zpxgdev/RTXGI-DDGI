@@ -109,6 +109,8 @@
 
 #endif // RTXGI_DDGI_BINDLESS_RESOURCES
 
+#include "include/ProbeDebugRecords.hlsl"
+
 // -------- SHARED MEMORY DECLARATIONS ------------------------------------------------------------
 
 #if RTXGI_DDGI_BLEND_SHARED_MEMORY
@@ -308,6 +310,11 @@ void DDGIProbeBlendingCS(
             RWTexture2DArray<float4> Output = ResourceDescriptorHeap[resourceIndices.probeDistanceUAVIndex];
         #endif
         RWTexture2DArray<float4> ProbeData = ResourceDescriptorHeap[resourceIndices.probeDataUAVIndex];
+
+    #if DDGI_PROBE_DEBUG_RECORDS_ENABLED && (RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_DESCRIPTOR_HEAP)
+        RWTexture2DArray<float4> ProbeIrradianceForDebug = ResourceDescriptorHeap[resourceIndices.probeIrradianceUAVIndex];
+        RWTexture2DArray<float4> ProbeDistanceForDebug = ResourceDescriptorHeap[resourceIndices.probeDistanceUAVIndex];
+    #endif
 
     #elif RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_RESOURCE_ARRAYS
 
@@ -573,6 +580,22 @@ void DDGIProbeBlendingCS(
 
     // Wait for all threads in the group to finish all memory operations
     AllMemoryBarrierWithGroupSync();
+
+#if !RTXGI_DDGI_BLEND_RADIANCE
+    #if DDGI_PROBE_DEBUG_RECORDS_ENABLED && RTXGI_DDGI_BINDLESS_RESOURCES && (RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_DESCRIPTOR_HEAP)
+    if (GroupThreadID.x == 0 && GroupThreadID.y == 0)
+    {
+        DDGIWriteProbeDebugRecord(
+            (uint)max(probeIndex, 0),
+            numProbes,
+            volumeIndex,
+            volume,
+            ProbeIrradianceForDebug,
+            ProbeDistanceForDebug,
+            ProbeData);
+    }
+    #endif
+#endif
 
     // Update the texel with the latest blended data
     UpdateBorderTexel(DispatchThreadID, GroupThreadID, GroupID, Output, volume);

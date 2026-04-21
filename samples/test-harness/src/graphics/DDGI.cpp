@@ -25,6 +25,25 @@ namespace Graphics
         {
             Shaders::AddDefine(shader, L"RTXGI_DDGI_RESOURCE_MANAGEMENT", std::to_wstring(RTXGI_DDGI_RESOURCE_MANAGEMENT));
 
+        #if defined(API_D3D12)
+            // Probe debug records are only emitted from DDGI kernels in D3D12 descriptor-heap bindless mode.
+            if (!spirv && RTXGI_DDGI_BINDLESS_RESOURCES && (RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_DESCRIPTOR_HEAP))
+            {
+                Shaders::AddDefine(shader, L"DDGI_PROBE_DEBUG_RECORDS_ENABLED", L"1");
+                Shaders::AddDefine(shader, L"DDGI_PROBE_DEBUG_UAV_INDEX", std::to_wstring(D3D12::DescriptorHeapOffsets::UAV_DDGI_PROBE_DEBUG));
+                Shaders::AddDefine(shader, L"DDGI_PROBE_DEBUG_PASS_COUNT", L"3");
+                Shaders::AddDefine(shader, L"DDGI_PROBE_DEBUG_RECORDS_PER_PROBE", L"1");
+                Shaders::AddDefine(shader, L"DDGI_PROBE_DEBUG_HEADER_ENTRIES", L"0");
+                Shaders::AddDefine(shader, L"DDGI_PROBE_DEBUG_MAX_VOLUMES", std::to_wstring(MAX_DDGIVOLUMES));
+            }
+            else
+            {
+                Shaders::AddDefine(shader, L"DDGI_PROBE_DEBUG_RECORDS_ENABLED", L"0");
+            }
+        #else
+            Shaders::AddDefine(shader, L"DDGI_PROBE_DEBUG_RECORDS_ENABLED", L"0");
+        #endif
+
         #if RTXGI_DDGI_USE_SHADER_CONFIG_FILE
             // Shader defines are specified in a config file
             Shaders::AddDefine(shader, L"RTXGI_DDGI_USE_SHADER_CONFIG_FILE", L"1");
@@ -147,6 +166,7 @@ namespace Graphics
 
                 // Add shader specific defines
                 Shaders::AddDefine(shader, L"RTXGI_DDGI_BLEND_RADIANCE", L"1");
+                Shaders::AddDefine(shader, L"DDGI_PROBE_DEBUG_PASS_INDEX", L"0");
                 Shaders::AddDefine(shader, L"RTXGI_DDGI_PROBE_NUM_TEXELS", numIrradianceTexels.c_str());
                 Shaders::AddDefine(shader, L"RTXGI_DDGI_PROBE_NUM_INTERIOR_TEXELS", numIrradianceInteriorTexels.c_str());
                 Shaders::AddDefine(shader, L"RTXGI_DDGI_BLEND_SHARED_MEMORY", std::to_wstring(RTXGI_DDGI_BLEND_SHARED_MEMORY));
@@ -177,6 +197,7 @@ namespace Graphics
 
                 // Add shader specific defines
                 Shaders::AddDefine(shader, L"RTXGI_DDGI_BLEND_RADIANCE", L"0");
+                Shaders::AddDefine(shader, L"DDGI_PROBE_DEBUG_PASS_INDEX", L"0");
                 Shaders::AddDefine(shader, L"RTXGI_DDGI_PROBE_NUM_TEXELS", numDistanceTexels.c_str());
                 Shaders::AddDefine(shader, L"RTXGI_DDGI_PROBE_NUM_INTERIOR_TEXELS", numDistanceInteriorTexels.c_str());
                 Shaders::AddDefine(shader, L"RTXGI_DDGI_BLEND_SHARED_MEMORY", std::to_wstring(RTXGI_DDGI_BLEND_SHARED_MEMORY));
@@ -205,6 +226,7 @@ namespace Graphics
 
                 // Add common shader defines
                 AddCommonShaderDefines(shader, volumeDesc, spirv);
+                Shaders::AddDefine(shader, L"DDGI_PROBE_DEBUG_PASS_INDEX", L"1");
 
                 CHECK(Shaders::Compile(gfx.shaderCompiler, shader), "load and compile the RTXGI probe relocation compute shader!\n", log);
 
@@ -232,6 +254,7 @@ namespace Graphics
 
                 // Add common shader defines
                 AddCommonShaderDefines(shader, volumeDesc, spirv);
+                Shaders::AddDefine(shader, L"DDGI_PROBE_DEBUG_PASS_INDEX", L"2");
 
                 CHECK(Shaders::Compile(gfx.shaderCompiler, shader), "load and compile the RTXGI probe classification compute shader!\n", log);
 

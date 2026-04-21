@@ -27,7 +27,6 @@ namespace Graphics
                 // Shaders
                 Shaders::ShaderRTPipeline    rtShaders;
                 Shaders::ShaderProgram       indirectCS;
-                Shaders::ShaderProgram       probeDebugCS;
 
                 // Ray Tracing
                 ID3D12Resource*              shaderTable = nullptr;
@@ -37,7 +36,6 @@ namespace Graphics
                 ID3D12StateObject*           rtpso = nullptr;
                 ID3D12StateObjectProperties* rtpsoInfo = nullptr;
                 ID3D12PipelineState*         indirectPSO = nullptr;
-                ID3D12PipelineState*         probeDebugPSO = nullptr;
 
                 // Shader Table
                 UINT                         shaderTableSize = 0;
@@ -80,7 +78,6 @@ namespace Graphics
                 Instrumentation::Stat*       relocateStat = nullptr;
                 Instrumentation::Stat*       lightingStat = nullptr;
                 Instrumentation::Stat*       variabilityStat = nullptr;
-                Instrumentation::Stat*       probeDebugStat = nullptr;
 
                 bool                         forceNoHysteresis = false;
                 bool                         forceNoHysteresisLastFrame = false;

@@ -306,12 +306,13 @@ namespace Graphics
 
             // ByteAddressBuffer SRV                                                // 393:   ByteAddressBuffer SRV Start
             const int SRV_BYTEADDRESS_START = SRV_TEX2DARRAY_START + (rtxgi::GetDDGIVolumeNumTex2DArrayDescriptors() * MAX_DDGIVOLUMES);
-            const int SRV_SPHERE_INDICES = SRV_BYTEADDRESS_START;                   // 393:  1 SRV for DDGI Probe Vis Sphere Index Buffer
-            const int SRV_SPHERE_VERTICES = SRV_SPHERE_INDICES + 1;                 // 394:  1 SRV for DDGI Probe Vis Sphere Vertex Buffer
-            const int SRV_MESH_OFFSETS = SRV_SPHERE_VERTICES + 1;                   // 395:  1 SRV for Mesh Offsets in the Geometry Data Buffer
-            const int SRV_GEOMETRY_DATA = SRV_MESH_OFFSETS + 1;                     // 396:  1 SRV for Geometry (Mesh Primitive) Data
-            const int SRV_INDICES = SRV_GEOMETRY_DATA + 1;                          // 397:  n SRV for Mesh Index Buffers
-            const int SRV_VERTICES = SRV_INDICES + 1;                               // 398:  n SRV for Mesh Vertex Buffers
+            const int SRV_DDGI_PROBE_DEBUG = SRV_BYTEADDRESS_START;                 // 393:  1 SRV for the DDGI probe debug structured buffer
+            const int SRV_SPHERE_INDICES = SRV_DDGI_PROBE_DEBUG + 1;                // 394:  1 SRV for DDGI Probe Vis Sphere Index Buffer
+            const int SRV_SPHERE_VERTICES = SRV_SPHERE_INDICES + 1;                 // 395:  1 SRV for DDGI Probe Vis Sphere Vertex Buffer
+            const int SRV_MESH_OFFSETS = SRV_SPHERE_VERTICES + 1;                   // 396:  1 SRV for Mesh Offsets in the Geometry Data Buffer
+            const int SRV_GEOMETRY_DATA = SRV_MESH_OFFSETS + 1;                     // 397:  1 SRV for Geometry (Mesh Primitive) Data
+            const int SRV_INDICES = SRV_GEOMETRY_DATA + 1;                          // 398:  n SRV for Mesh Index Buffers
+            const int SRV_VERTICES = SRV_INDICES + 1;                               // 399:  n SRV for Mesh Vertex Buffers
         };
     }
 

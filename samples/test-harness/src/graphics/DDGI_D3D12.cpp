@@ -30,8 +30,11 @@ namespace Graphics
         namespace DDGI
         {
 
-            static const UINT PROBE_DEBUG_NUMTHREADS_X = 64;
-            static const UINT PROBE_DEBUG_RECORDS_PER_PROBE = 3;
+            static const UINT PROBE_DEBUG_RECORDS_PER_PROBE = 1;
+            static const UINT PROBE_DEBUG_HEADER_ENTRIES = 0;
+            static const UINT PROBE_DEBUG_PASS_COUNT = 3;
+            static const UINT PROBE_DEBUG_MAX_VOLUMES = MAX_DDGIVOLUMES;
+            static const UINT PROBE_DEBUG_RECORD_STRIDE_BYTES = sizeof(float) * 4 * 5;
 
             //----------------------------------------------------------------------------------------------------------
             // DDGIVolume Resource Creation Functions (Unmanaged Mode)
@@ -781,12 +784,13 @@ namespace Graphics
                 SAFE_RELEASE(resources.probeDebugBuffer);
                 resources.probeDebugBufferEntries = 0;
 
-                // Allocate at least one metadata record so the shader can always write header data.
-                UINT maxProbes = std::max(1u, config.ddgi.probeDebugDumpMaxProbes);
-                resources.probeDebugBufferEntries = 1 + (maxProbes * PROBE_DEBUG_RECORDS_PER_PROBE);
+                // Allocate per-volume segmented records so DDGI kernels can write debug data inline.
+                UINT maxProbes = config.ddgi.probeDebugDumpEnabled ? std::max(1u, config.ddgi.probeDebugDumpMaxProbes) : 0u;
+                resources.probeDebugBufferEntries = PROBE_DEBUG_MAX_VOLUMES
+                    * (PROBE_DEBUG_HEADER_ENTRIES + (PROBE_DEBUG_PASS_COUNT * maxProbes * PROBE_DEBUG_RECORDS_PER_PROBE));
 
                 BufferDesc bufferDesc = {};
-                bufferDesc.size = UINT64(resources.probeDebugBufferEntries) * sizeof(float) * 4;
+                bufferDesc.size = UINT64(resources.probeDebugBufferEntries) * PROBE_DEBUG_RECORD_STRIDE_BYTES;
                 bufferDesc.heap = EHeapType::DEFAULT;
                 bufferDesc.state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
                 bufferDesc.flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
@@ -800,11 +804,21 @@ namespace Graphics
                 uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
                 uavDesc.Format = DXGI_FORMAT_UNKNOWN;
                 uavDesc.Buffer.NumElements = resources.probeDebugBufferEntries;
-                uavDesc.Buffer.StructureByteStride = sizeof(float) * 4;
+                uavDesc.Buffer.StructureByteStride = PROBE_DEBUG_RECORD_STRIDE_BYTES;
 
                 D3D12_CPU_DESCRIPTOR_HANDLE handle = {};
                 handle.ptr = d3dResources.srvDescHeapStart.ptr + (DescriptorHeapOffsets::UAV_DDGI_PROBE_DEBUG * d3dResources.srvDescHeapEntrySize);
                 d3d.device->CreateUnorderedAccessView(resources.probeDebugBuffer, nullptr, &uavDesc, handle);
+
+                D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+                srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+                srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+                srvDesc.Buffer.NumElements = resources.probeDebugBufferEntries;
+                srvDesc.Buffer.StructureByteStride = PROBE_DEBUG_RECORD_STRIDE_BYTES;
+                srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
+                handle.ptr = d3dResources.srvDescHeapStart.ptr + (DescriptorHeapOffsets::SRV_DDGI_PROBE_DEBUG * d3dResources.srvDescHeapEntrySize);
+                d3d.device->CreateShaderResourceView(resources.probeDebugBuffer, &srvDesc, handle);
 
                 return true;
             }
@@ -814,7 +828,6 @@ namespace Graphics
                 // Release existing shaders
                 resources.rtShaders.Release();
                 resources.indirectCS.Release();
-                resources.probeDebugCS.Release();
 
                 std::wstring root = std::wstring(d3d.shaderCompiler.root.begin(), d3d.shaderCompiler.root.end());
 
@@ -882,24 +895,6 @@ namespace Graphics
                     CHECK(Shaders::Compile(d3d.shaderCompiler, resources.indirectCS), "compile indirect lighting compute shader!\n", log);
                 }
 
-                // Load and compile the probe debug dump compute shader
-            #if RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_DESCRIPTOR_HEAP
-                {
-                    std::wstring shaderPath = root + L"shaders/ddgi/ProbeDebugDumpCS.hlsl";
-                    resources.probeDebugCS.filepath = shaderPath.c_str();
-                    resources.probeDebugCS.entryPoint = L"CS";
-                    resources.probeDebugCS.targetProfile = L"cs_6_6";
-
-                    Shaders::AddDefine(resources.probeDebugCS, L"CONSTS_REGISTER", L"b0");   // for DDGIRootConstants, see Direct3D12.cpp::CreateGlobalRootSignature(...)
-                    Shaders::AddDefine(resources.probeDebugCS, L"CONSTS_SPACE", L"space1");  // for DDGIRootConstants, see Direct3D12.cpp::CreateGlobalRootSignature(...)
-                    Shaders::AddDefine(resources.probeDebugCS, L"RTXGI_BINDLESS_TYPE", std::to_wstring(RTXGI_BINDLESS_TYPE));
-                    Shaders::AddDefine(resources.probeDebugCS, L"RTXGI_COORDINATE_SYSTEM", std::to_wstring(RTXGI_COORDINATE_SYSTEM));
-                    Shaders::AddDefine(resources.probeDebugCS, L"THGP_DIM_X", std::to_wstring(PROBE_DEBUG_NUMTHREADS_X));
-                    Shaders::AddDefine(resources.probeDebugCS, L"DDGI_PROBE_DEBUG_UAV_INDEX", std::to_wstring(DescriptorHeapOffsets::UAV_DDGI_PROBE_DEBUG));
-                    CHECK(Shaders::Compile(d3d.shaderCompiler, resources.probeDebugCS), "compile DDGI probe debug dump compute shader!\n", log);
-                }
-            #endif
-
                 return true;
             }
 
@@ -909,7 +904,6 @@ namespace Graphics
                 SAFE_RELEASE(resources.rtpso);
                 SAFE_RELEASE(resources.rtpsoInfo);
                 SAFE_RELEASE(resources.indirectPSO);
-                SAFE_RELEASE(resources.probeDebugPSO);
 
                 // Create the RTPSO
                 CHECK(CreateRayTracingPSO(
@@ -932,18 +926,6 @@ namespace Graphics
                     "create indirect lighting PSO!\n", log);
             #ifdef GFX_NAME_OBJECTS
                 resources.indirectPSO->SetName(L"Indirect Lighting (DDGI) PSO");
-            #endif
-
-            #if RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_DESCRIPTOR_HEAP
-                CHECK(CreateComputePSO(
-                    d3d.device,
-                    d3dResources.rootSignature,
-                    resources.probeDebugCS,
-                    &resources.probeDebugPSO),
-                    "create DDGI probe debug dump PSO!\n", log);
-            #ifdef GFX_NAME_OBJECTS
-                resources.probeDebugPSO->SetName(L"DDGI Probe Debug Dump PSO");
-            #endif
             #endif
 
                 return true;
@@ -1149,6 +1131,18 @@ namespace Graphics
                 // Set the root signature
                 d3d.cmdList[d3d.frameIndex]->SetComputeRootSignature(d3dResources.rootSignature);
 
+                // Update root constants for the indirect lighting gather pass.
+                UINT offset = 0;
+                GlobalConstants consts = d3dResources.constants;
+                d3d.cmdList[d3d.frameIndex]->SetComputeRoot32BitConstants(0, AppConsts::GetNum32BitValues(), consts.app.GetData(), offset);
+                offset += AppConsts::GetAlignedNum32BitValues();
+                d3d.cmdList[d3d.frameIndex]->SetComputeRoot32BitConstants(0, PathTraceConsts::GetNum32BitValues(), consts.pt.GetData(), offset);
+                offset += PathTraceConsts::GetAlignedNum32BitValues();
+                d3d.cmdList[d3d.frameIndex]->SetComputeRoot32BitConstants(0, LightingConsts::GetNum32BitValues(), consts.lights.GetData(), offset);
+
+                DDGIRootConstants ddgiConsts = { 0, DescriptorHeapOffsets::STB_DDGI_VOLUME_CONSTS, DescriptorHeapOffsets::STB_DDGI_VOLUME_RESOURCE_INDICES };
+                d3d.cmdList[d3d.frameIndex]->SetComputeRoot32BitConstants(1, DDGIRootConstants::GetNum32BitValues(), ddgiConsts.GetData(), 0);
+
                 // Set the root parameter descriptor tables
             #if RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_RESOURCE_ARRAYS
                 d3d.cmdList[d3d.frameIndex]->SetComputeRootDescriptorTable(2, d3dResources.samplerDescHeap->GetGPUDescriptorHandleForHeapStart());
@@ -1180,66 +1174,6 @@ namespace Graphics
             #ifdef GFX_PERF_MARKERS
                 PIXEndEvent(d3d.cmdList[d3d.frameIndex]);
             #endif
-            }
-
-            void DumpProbeDebugData(Globals& d3d, GlobalResources& d3dResources, Resources& resources)
-            {
-                if (!resources.probeDebugDumpEnabled || resources.probeDebugPSO == nullptr || resources.probeDebugBuffer == nullptr) return;
-                if (resources.volumes.empty() || resources.volumeDescs.empty()) return;
-
-                UINT volumeIndex = std::min(resources.probeDebugDumpVolume, static_cast<uint32_t>(resources.volumes.size() - 1));
-                const DDGIVolume* volume = static_cast<DDGIVolume*>(resources.volumes[volumeIndex]);
-                const DDGIVolumeDesc& volumeDesc = resources.volumeDescs[volumeIndex];
-
-                UINT totalProbes = static_cast<UINT>(volumeDesc.probeCounts.x)
-                    * static_cast<UINT>(volumeDesc.probeCounts.y)
-                    * static_cast<UINT>(volumeDesc.probeCounts.z);
-
-                if (totalProbes == 0) return;
-
-                UINT maxProbes = std::max(1u, resources.probeDebugDumpMaxProbes);
-                maxProbes = std::min(maxProbes, totalProbes);
-
-                // Ensure probe blending/classification writes are visible before reading DDGI textures.
-                D3D12_RESOURCE_BARRIER preBarrier = {};
-                preBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-                preBarrier.UAV.pResource = volume->GetProbeIrradiance();
-                d3d.cmdList[d3d.frameIndex]->ResourceBarrier(1, &preBarrier);
-                preBarrier.UAV.pResource = volume->GetProbeDistance();
-                d3d.cmdList[d3d.frameIndex]->ResourceBarrier(1, &preBarrier);
-                preBarrier.UAV.pResource = volume->GetProbeData();
-                d3d.cmdList[d3d.frameIndex]->ResourceBarrier(1, &preBarrier);
-
-                ID3D12DescriptorHeap* ppHeaps[] = { d3dResources.srvDescHeap, d3dResources.samplerDescHeap };
-                d3d.cmdList[d3d.frameIndex]->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
-
-                d3d.cmdList[d3d.frameIndex]->SetComputeRootSignature(d3dResources.rootSignature);
-
-                UINT offset = 0;
-                GlobalConstants consts = d3dResources.constants;
-                d3d.cmdList[d3d.frameIndex]->SetComputeRoot32BitConstants(0, AppConsts::GetNum32BitValues(), consts.app.GetData(), offset);
-                offset += AppConsts::GetAlignedNum32BitValues();
-                d3d.cmdList[d3d.frameIndex]->SetComputeRoot32BitConstants(0, PathTraceConsts::GetNum32BitValues(), consts.pt.GetData(), offset);
-                offset += PathTraceConsts::GetAlignedNum32BitValues();
-                d3d.cmdList[d3d.frameIndex]->SetComputeRoot32BitConstants(0, LightingConsts::GetNum32BitValues(), consts.lights.GetData(), offset);
-
-                DDGIRootConstants ddgiConsts = { volumeIndex, DescriptorHeapOffsets::STB_DDGI_VOLUME_CONSTS, DescriptorHeapOffsets::STB_DDGI_VOLUME_RESOURCE_INDICES };
-                d3d.cmdList[d3d.frameIndex]->SetComputeRoot32BitConstants(1, DDGIRootConstants::GetNum32BitValues(), ddgiConsts.GetData(), 0);
-
-            #if RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_RESOURCE_ARRAYS
-                d3d.cmdList[d3d.frameIndex]->SetComputeRootDescriptorTable(2, d3dResources.samplerDescHeap->GetGPUDescriptorHandleForHeapStart());
-                d3d.cmdList[d3d.frameIndex]->SetComputeRootDescriptorTable(3, d3dResources.srvDescHeap->GetGPUDescriptorHandleForHeapStart());
-            #endif
-
-                d3d.cmdList[d3d.frameIndex]->SetPipelineState(resources.probeDebugPSO);
-
-                UINT groupsX = DivRoundUp(maxProbes, PROBE_DEBUG_NUMTHREADS_X);
-                d3d.cmdList[d3d.frameIndex]->Dispatch(groupsX, 1, 1);
-
-                D3D12_RESOURCE_BARRIER postBarrier = {};
-                postBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-                postBarrier.UAV.pResource = resources.probeDebugBuffer;
-                d3d.cmdList[d3d.frameIndex]->ResourceBarrier(1, &postBarrier);
             }
 
             //----------------------------------------------------------------------------------------------------------
@@ -1294,7 +1228,6 @@ namespace Graphics
                 resources.classifyStat = perf.AddGPUStat("  Classify");
                 resources.lightingStat = perf.AddGPUStat("  Lighting");
                 resources.variabilityStat = perf.AddGPUStat("  Variability");
-                resources.probeDebugStat = perf.AddGPUStat("  Probe Debug Dump");
 
                 resources.forceNoHysteresis = config.ddgi.forceNoHysteresis;
                 resources.forceNoHysteresisLastFrame = resources.forceNoHysteresis;
@@ -1303,13 +1236,6 @@ namespace Graphics
                 resources.probeDebugDumpEnabled = config.ddgi.probeDebugDumpEnabled;
                 resources.probeDebugDumpVolume = config.ddgi.probeDebugDumpVolume;
                 resources.probeDebugDumpMaxProbes = std::max(1u, config.ddgi.probeDebugDumpMaxProbes);
-
-                if (resources.probeDebugDumpEnabled && resources.probeDebugPSO == nullptr)
-                {
-                    log << "\n[DDGI] Probe debug dump is enabled, but probeDebugPSO is null. "
-                        << "ProbeDebugDumpCS/PSO is only created when RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_DESCRIPTOR_HEAP (1).";
-                    std::flush(log);
-                }
 
                 return true;
             }
@@ -1519,11 +1445,6 @@ namespace Graphics
                     rtxgi::d3d12::ClassifyDDGIVolumeProbes(d3d.cmdList[d3d.frameIndex], numVolumes, resources.selectedVolumes.data());
                     GPU_TIMESTAMP_END(resources.classifyStat->GetGPUQueryEndIndex());
 
-                    // Dump selected probe debug data into a GPU-only buffer for frame capture inspection.
-                    GPU_TIMESTAMP_BEGIN(resources.probeDebugStat->GetGPUQueryBeginIndex());
-                    DumpProbeDebugData(d3d, d3dResources, resources);
-                    GPU_TIMESTAMP_END(resources.probeDebugStat->GetGPUQueryEndIndex());
-
                     // Calculate variability
                     GPU_TIMESTAMP_BEGIN(resources.variabilityStat->GetGPUQueryBeginIndex());
                     rtxgi::d3d12::CalculateDDGIVolumeVariability(d3d.cmdList[d3d.frameIndex], numVolumes, resources.selectedVolumes.data());
@@ -1555,12 +1476,10 @@ namespace Graphics
                 SAFE_RELEASE(resources.shaderTableUpload);
                 resources.rtShaders.Release();
                 resources.indirectCS.Release();
-                resources.probeDebugCS.Release();
 
                 SAFE_RELEASE(resources.rtpso);
                 SAFE_RELEASE(resources.rtpsoInfo);
                 SAFE_RELEASE(resources.indirectPSO);
-                SAFE_RELEASE(resources.probeDebugPSO);
 
                 resources.shaderTableSize = 0;
                 resources.shaderTableRecordSize = 0;

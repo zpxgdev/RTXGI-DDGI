@@ -37,6 +37,7 @@
 #include "include/Descriptors.hlsl"
 
 #include "../../../rtxgi-sdk/shaders/ddgi/include/DDGIRootConstants.hlsl"
+#include "../../../rtxgi-sdk/shaders/ddgi/include/ProbeDebugRecords.hlsl"
 #include "../../../rtxgi-sdk/shaders/ddgi/Irradiance.hlsl"
 
 // ---[ Compute Shader ]---
@@ -67,6 +68,24 @@ void CS(uint3 DispatchThreadID : SV_DispatchThreadID)
 
         // Compute indirect lighting
         float3 irradiance = 0.f;
+
+        // Touch DDGI probe debug records so this pass references the data in frame captures.
+        // The branch condition is intentionally unreachable for normal data and does not affect output.
+    #if RTXGI_BINDLESS_TYPE == RTXGI_BINDLESS_TYPE_DESCRIPTOR_HEAP
+        StructuredBuffer<DDGIProbeDebugRecord> ProbeDebug = ResourceDescriptorHeap[DDGI_PROBE_DEBUG_SRV_INDEX];
+        uint debugEntries = 0;
+        uint debugStride = 0;
+        ProbeDebug.GetDimensions(debugEntries, debugStride);
+        if (debugEntries > 0)
+        {
+            uint debugIndex = min(debugEntries - 1, ((DispatchThreadID.x + DispatchThreadID.y) & 3));
+            DDGIProbeDebugRecord debugSample = ProbeDebug[debugIndex];
+            if (debugSample.layout.w == 255u)
+            {
+                irradiance += debugSample.probeMeta.xyz;
+            }
+        }
+    #endif
 
         // Get the structured buffers
         StructuredBuffer<DDGIVolumeDescGPUPacked> DDGIVolumes = GetDDGIVolumeConstants(GetDDGIVolumeConstantsIndex());
