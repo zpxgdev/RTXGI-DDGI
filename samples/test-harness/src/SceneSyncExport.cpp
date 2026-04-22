@@ -893,7 +893,10 @@ namespace
                     .name(baseName)
                     .intensity(srcLight.data.power)
                     .color(MakeLinearColor(srcLight.data.color.x, srcLight.data.color.y, srcLight.data.color.z))
-                    .dir(MakeVec3(dx, dy, dz));
+                    // PT evaluates directional light with wi = normalize(light.direction),
+                    // where wi is from shading point to light. Source scene direction is
+                    // light ray travel direction (from light to scene), so export negated.
+                    .dir(MakeVec3(-dx, -dy, -dz));
 
                 rg_scene::Component::DirectionalLight component;
                 component._0(std::move(light));
