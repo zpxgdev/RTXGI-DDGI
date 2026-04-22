@@ -190,11 +190,6 @@ int Run(const std::vector<std::string>& arguments)
     CHECK(Graphics::RTAO::Initialize(gfx, gfxResources, rtao, perf, log), "initialize ray traced ambient occlusion workload!\n", log);
     CHECK(Graphics::Composite::Initialize(gfx, gfxResources, composite, perf, log), "initialize composition workload!\n", log);
 
-    if (!SceneSyncExport::ExportIfRequested(config, scene, ddgi.volumeDescs, log))
-    {
-        log << "[SceneSync] Startup export failed.\n";
-    }
-    config.ddgi.sceneSyncExportOnStartup = false;
 
     // Initialize the user interface system
     log << "Initializing user interface...";
@@ -321,6 +316,14 @@ int Run(const std::vector<std::string>& arguments)
 
             // RTXGI: DDGI
             Graphics::DDGI::Update(gfx, gfxResources, ddgi, config);
+
+
+            if (!SceneSyncExport::ExportIfRequested(config, scene, ddgi.volumeDescs, ddgi.volumes, log))
+            {
+                log << "[SceneSync] Startup export failed.\n";
+            }
+            config.ddgi.sceneSyncExportOnStartup = false;
+
             Graphics::DDGI::Execute(gfx, gfxResources, ddgi);
 
             // RTXGI: DDGI Visualizations

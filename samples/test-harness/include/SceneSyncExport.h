@@ -22,5 +22,6 @@ namespace SceneSyncExport
         const Configs::Config& config,
         const Scenes::Scene& scene,
         const std::vector<rtxgi::DDGIVolumeDesc>& volumeDescs,
+        const std::vector<rtxgi::DDGIVolumeBase*>& volumes,
         std::ofstream& log);
 }

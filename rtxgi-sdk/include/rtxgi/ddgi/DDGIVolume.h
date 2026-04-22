@@ -362,6 +362,10 @@ namespace rtxgi
 
         float GetProbeFixedRayBackfaceThreshold() const { return m_desc.probeFixedRayBackfaceThreshold; }
 
+        float4 GetProbeRayRotationQuaternion() const { return m_probeRayRotationQuaternion; }
+
+        float3x3 GetProbeRayRotationMatrix() const { return m_probeRayRotationMatrix; }
+
         float3 GetEulerAngles() const { return m_desc.eulerAngles; }
 
         float3 GetProbeWorldPosition(int probeIndex) const;

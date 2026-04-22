@@ -32,6 +32,14 @@
     #define DDGI_PROBE_DEBUG_PASS_INDEX 0
 #endif
 
+#ifndef DDGI_PROBE_DEBUG_BLEND_FLAG_INACTIVE_SKIP
+    #define DDGI_PROBE_DEBUG_BLEND_FLAG_INACTIVE_SKIP 1
+#endif
+
+#ifndef DDGI_PROBE_DEBUG_BLEND_FLAG_BACKFACE_EARLY_OUT
+    #define DDGI_PROBE_DEBUG_BLEND_FLAG_BACKFACE_EARLY_OUT 2
+#endif
+
 struct DDGIProbeDebugRecord
 {
     uint4 probe_meta;
@@ -120,6 +128,57 @@ void DDGIWriteProbeDebugRecord(
     float randomRayDistance = DDGILoadProbeRayDistance(RayData, randomRayTexel, volume);
     float3 randomRayRadiance = DDGILoadProbeRayRadiance(RayData, randomRayTexel, volume);
 
+    uint firstBlendRay = (volume.probeRelocationEnabled || volume.probeClassificationEnabled)
+        ? (uint)RTXGI_DDGI_NUM_FIXED_RAYS
+        : 0u;
+    uint blendedRayCount = (volume.probeNumRays > (int)firstBlendRay)
+        ? ((uint)volume.probeNumRays - firstBlendRay)
+        : 0u;
+    uint maxBackfaces = (uint)((float)blendedRayCount * volume.probeRandomRayBackfaceThreshold);
+    uint blendBackfaces = 0u;
+    float blendWeightSum = 0.f;
+    bool blendBackfaceEarlyOut = false;
+
+    uint centerTexel = ((uint)volume.probeNumIrradianceInteriorTexels) / 2u;
+    float2 centerProbeOctantUV = DDGIGetNormalizedOctahedralCoordinates(
+        int2((int)centerTexel, (int)centerTexel),
+        volume.probeNumIrradianceInteriorTexels);
+    float3 centerProbeDirection = DDGIGetOctahedralDirection(centerProbeOctantUV);
+
+    for (uint rayIndex = firstBlendRay; rayIndex < (uint)volume.probeNumRays; rayIndex++)
+    {
+        int3 blendRayTexel = DDGIGetRayDataTexelCoords((int)rayIndex, (int)probeIndex, volume);
+        float blendDistance = DDGILoadProbeRayDistance(RayData, blendRayTexel, volume);
+        if (blendDistance < 0.f)
+        {
+            blendBackfaces++;
+            if (blendBackfaces >= maxBackfaces)
+            {
+                blendBackfaceEarlyOut = true;
+                break;
+            }
+            continue;
+        }
+
+        float3 blendRayDirection = DDGIGetProbeRayDirection((int)rayIndex, volume);
+        float blendWeight = max(0.f, dot(centerProbeDirection, blendRayDirection));
+        blendWeightSum += blendWeight;
+    }
+
+    float blendBackfaceRatio = (blendedRayCount > 0u)
+        ? ((float)blendBackfaces / (float)blendedRayCount)
+        : 0.f;
+
+    uint blendFlags = 0u;
+    if (((uint)probeState) == RTXGI_DDGI_PROBE_STATE_INACTIVE)
+    {
+        blendFlags |= DDGI_PROBE_DEBUG_BLEND_FLAG_INACTIVE_SKIP;
+    }
+    if (blendBackfaceEarlyOut)
+    {
+        blendFlags |= DDGI_PROBE_DEBUG_BLEND_FLAG_BACKFACE_EARLY_OUT;
+    }
+
     int numRays = min(volume.probeNumRays, RTXGI_DDGI_NUM_FIXED_RAYS);
     float closestBackfaceDistance = 1e27f;
     float closestFrontfaceDistance = 1e27f;
@@ -156,10 +215,10 @@ void DDGIWriteProbeDebugRecord(
     record.trace_random_ray_data = float4(randomRayRadiance, randomRayDistance);
     record.relocate_stats = float4(closestBackfaceDistance, closestFrontfaceDistance, farthestFrontfaceDistance, (numRays > 0) ? (((float)backfaceCount) / ((float)numRays)) : 0.f);
     record.relocate_offset = float4(probeOffset, length(probeOffset));
-    record.classify_stats = uint4(backfaceCount, (uint)numRays, (uint)(((uint)probeState) == RTXGI_DDGI_PROBE_STATE_ACTIVE), 0u);
+    record.classify_stats = uint4(backfaceCount, (uint)numRays, (uint)(((uint)probeState) == RTXGI_DDGI_PROBE_STATE_ACTIVE), blendFlags);
     record.classify_probe = float4(probeWorldPos, probeState);
     record.irradiance_center = float4(irradiance.rgb, distanceMoments.x);
-    record.distance_center = float4(distanceMoments.xy, 0.f, 0.f);
+    record.distance_center = float4(distanceMoments.xy, blendWeightSum, blendBackfaceRatio);
     record.packed_state = float4(probeOffset, probeState);
 
     ProbeDebugOut[baseIndex] = record;

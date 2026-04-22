@@ -32,6 +32,8 @@
 
 namespace
 {
+    constexpr uint32_t kRtxgiDdgiNumFixedRays = 32u;
+
     struct SceneSyncRuntime
     {
         HMODULE module = nullptr;
@@ -470,7 +472,10 @@ namespace
         return true;
     }
 
-    void FillDDGIVolumes(const std::vector<rtxgi::DDGIVolumeDesc>& volumeDescs, rg_scene::Scene& scene)
+    void FillDDGIVolumes(
+        const std::vector<rtxgi::DDGIVolumeDesc>& volumeDescs,
+        const std::vector<rtxgi::DDGIVolumeBase*>& volumes,
+        rg_scene::Scene& scene)
     {
         rg_scene::Vec<rg_scene::DdgiVolume> ddgiVolumes;
 
@@ -489,6 +494,61 @@ namespace
                 ? std::string(volumeDesc.name)
                 : ("ddgi_volume_" + std::to_string(volumeIndex));
 
+            const bool hasLiveVolume = (volumeIndex < volumes.size() && volumes[volumeIndex] != nullptr);
+            const rtxgi::float4 probeRayRotationQuaternion = hasLiveVolume
+                ? volumes[volumeIndex]->GetProbeRayRotationQuaternion()
+                : rtxgi::float4{ 0.f, 0.f, 0.f, 1.f };
+            const rtxgi::float3x3 probeRayRotationMatrix = hasLiveVolume
+                ? volumes[volumeIndex]->GetProbeRayRotationMatrix()
+                : rtxgi::float3x3{
+                    rtxgi::float3{ 1.f, 0.f, 0.f },
+                    rtxgi::float3{ 0.f, 1.f, 0.f },
+                    rtxgi::float3{ 0.f, 0.f, 1.f },
+                };
+
+            const int runtimeNumRays = hasLiveVolume
+                ? volumes[volumeIndex]->GetNumRaysPerProbe()
+                : volumeDesc.probeNumRays;
+            const float runtimeMaxDistance = hasLiveVolume
+                ? volumes[volumeIndex]->GetProbeMaxRayDistance()
+                : volumeDesc.probeMaxRayDistance;
+            const float runtimeDistanceExponent = hasLiveVolume
+                ? volumes[volumeIndex]->GetProbeDistanceExponent()
+                : volumeDesc.probeDistanceExponent;
+            const float runtimeIrradianceEncodingGamma = hasLiveVolume
+                ? volumes[volumeIndex]->GetProbeIrradianceEncodingGamma()
+                : volumeDesc.probeIrradianceEncodingGamma;
+            const bool runtimeRelocationEnabled = hasLiveVolume
+                ? volumes[volumeIndex]->GetProbeRelocationEnabled()
+                : volumeDesc.probeRelocationEnabled;
+            const bool runtimeClassificationEnabled = hasLiveVolume
+                ? volumes[volumeIndex]->GetProbeClassificationEnabled()
+                : volumeDesc.probeClassificationEnabled;
+            const float runtimeFixedRayBackfaceThreshold = hasLiveVolume
+                ? volumes[volumeIndex]->GetProbeFixedRayBackfaceThreshold()
+                : volumeDesc.probeFixedRayBackfaceThreshold;
+            const float runtimeRandomRayBackfaceThreshold = hasLiveVolume
+                ? volumes[volumeIndex]->GetProbeRandomRayBackfaceThreshold()
+                : volumeDesc.probeRandomRayBackfaceThreshold;
+
+            const rg_scene::u32 raysPerProbe = static_cast<rg_scene::u32>(std::max(1, runtimeNumRays));
+            const rg_scene::u32 irradianceInteriorTexels = static_cast<rg_scene::u32>(std::max(
+                1,
+                (volumeDesc.probeNumIrradianceInteriorTexels > 0)
+                    ? volumeDesc.probeNumIrradianceInteriorTexels
+                    : (volumeDesc.probeNumIrradianceTexels - 2)));
+            const rg_scene::u32 distanceInteriorTexels = static_cast<rg_scene::u32>(std::max(
+                1,
+                (volumeDesc.probeNumDistanceInteriorTexels > 0)
+                    ? volumeDesc.probeNumDistanceInteriorTexels
+                    : (volumeDesc.probeNumDistanceTexels - 2)));
+            const rg_scene::u32 fixedRays = std::min(raysPerProbe, static_cast<rg_scene::u32>(kRtxgiDdgiNumFixedRays));
+            const float maxDistance = std::max(0.f, runtimeMaxDistance);
+            const float distanceExponent = std::max(0.f, runtimeDistanceExponent);
+            const float irradianceEncodingGamma = std::max(0.f, runtimeIrradianceEncodingGamma);
+            const float fixedRayBackfaceThreshold = std::clamp(runtimeFixedRayBackfaceThreshold, 0.f, 1.f);
+            const float randomRayBackfaceThreshold = std::clamp(runtimeRandomRayBackfaceThreshold, 0.f, 1.f);
+
             rg_scene::DdgiVolume ddgiVolume;
             ddgiVolume
                 .name(volumeName)
@@ -499,7 +559,36 @@ namespace
                 .probe_count_z(static_cast<rg_scene::u32>(std::max(0, volumeDesc.probeCounts.z)))
                 .blend_distance(minSpacing)
                 .blend_distance_black(0.f)
-                .irradiance_scalar(1.f);
+                .irradiance_scalar(1.f)
+                .rays_per_probe(raysPerProbe)
+                .max_distance(maxDistance)
+                .irradiance_probe_num_texels(irradianceInteriorTexels)
+                .distance_probe_num_texels(distanceInteriorTexels)
+                .distance_exponent(distanceExponent)
+                .irradiance_encoding_gamma(irradianceEncodingGamma)
+                .fixed_rays(fixedRays)
+                .probe_relocation_enabled(runtimeRelocationEnabled)
+                .probe_classification_enabled(runtimeClassificationEnabled)
+                .probe_fixed_ray_backface_threshold(fixedRayBackfaceThreshold)
+                .probe_random_ray_backface_threshold(randomRayBackfaceThreshold)
+                .probe_ray_rotation_exported(hasLiveVolume)
+                .probe_ray_rotation_quaternion(MakeVec4(
+                    probeRayRotationQuaternion.x,
+                    probeRayRotationQuaternion.y,
+                    probeRayRotationQuaternion.z,
+                    probeRayRotationQuaternion.w))
+                .probe_ray_rotation_matrix_row0(MakeVec3(
+                    probeRayRotationMatrix[0].x,
+                    probeRayRotationMatrix[0].y,
+                    probeRayRotationMatrix[0].z))
+                .probe_ray_rotation_matrix_row1(MakeVec3(
+                    probeRayRotationMatrix[1].x,
+                    probeRayRotationMatrix[1].y,
+                    probeRayRotationMatrix[1].z))
+                .probe_ray_rotation_matrix_row2(MakeVec3(
+                    probeRayRotationMatrix[2].x,
+                    probeRayRotationMatrix[2].y,
+                    probeRayRotationMatrix[2].z));
 
             ddgiVolumes.push(std::move(ddgiVolume));
         }
@@ -918,6 +1007,7 @@ namespace SceneSyncExport
         const Configs::Config& config,
         const Scenes::Scene& scene,
         const std::vector<rtxgi::DDGIVolumeDesc>& volumeDescs,
+        const std::vector<rtxgi::DDGIVolumeBase*>& volumes,
         std::ofstream& log)
     {
         if (!config.ddgi.sceneSyncExportEnabled || !config.ddgi.sceneSyncExportOnStartup) return true;
@@ -942,7 +1032,7 @@ namespace SceneSyncExport
         exportScene.mesh_config(std::move(meshConfig));
         exportScene.coord_sys(MakeSceneCoordSys());
 
-        FillDDGIVolumes(volumeDescs, exportScene);
+        FillDDGIVolumes(volumeDescs, volumes, exportScene);
 
         std::vector<std::string> materialPaths;
         FillMaterials(scene, exportScene, materialPaths);
@@ -968,6 +1058,7 @@ namespace SceneSyncExport
         const Configs::Config& config,
         const Scenes::Scene&,
         const std::vector<rtxgi::DDGIVolumeDesc>&,
+        const std::vector<rtxgi::DDGIVolumeBase*>&,
         std::ofstream& log)
     {
         if (config.ddgi.sceneSyncExportEnabled && config.ddgi.sceneSyncExportOnStartup)
